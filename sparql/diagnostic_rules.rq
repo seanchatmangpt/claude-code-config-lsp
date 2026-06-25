@@ -1,0 +1,13 @@
+PREFIX ccc: <https://claude-code-config-lsp.rs/ontology/>
+
+SELECT ?code ?message ?severity ?family ?surface_id ?law_axis
+WHERE {
+    ?rule_id a ccc:DiagnosticRule ;
+        ccc:diagCode ?code ;
+        ccc:diagMessage ?message ;
+        ccc:diagSeverity ?severity ;
+        ccc:diagFamily ?family ;
+        ccc:diagSurface ?surface_id ;
+        ccc:diagLawAxis ?law_axis .
+}
+ORDER BY ?family ?code

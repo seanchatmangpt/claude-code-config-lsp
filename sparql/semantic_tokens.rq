@@ -1,0 +1,9 @@
+PREFIX ccc: <https://claude-code-config-lsp.rs/ontology/>
+
+SELECT ?token_type_name ?token_description
+WHERE {
+    ?token_id a ccc:SemanticTokenType ;
+        ccc:tokenTypeName ?token_type_name ;
+        ccc:tokenDescription ?token_description .
+}
+ORDER BY ?token_type_name

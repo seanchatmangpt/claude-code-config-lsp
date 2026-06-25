@@ -1,0 +1,14 @@
+PREFIX ccc: <https://claude-code-config-lsp.rs/ontology/>
+
+SELECT ?field_id ?field_name ?field_type ?field_required ?field_description ?field_enum_values ?surface_id
+WHERE {
+    ?field_id a ccc:SchemaField ;
+        ccc:fieldName ?field_name ;
+        ccc:fieldType ?field_type ;
+        ccc:fieldRequired ?field_required ;
+        ccc:fieldDescription ?field_description ;
+        ccc:fieldSurface ?surface_id .
+
+    OPTIONAL { ?field_id ccc:fieldEnumValues ?field_enum_values . }
+}
+ORDER BY ?surface_id ?field_name

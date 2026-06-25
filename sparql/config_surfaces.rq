@@ -1,0 +1,15 @@
+PREFIX ccc: <https://claude-code-config-lsp.rs/ontology/>
+
+SELECT ?surface_id ?surface_label ?file_pattern ?language_id ?analyzer_module ?parser_kind ?schema_source ?schema_url
+WHERE {
+    ?surface_id a ccc:ConfigSurface ;
+        rdfs:label ?surface_label ;
+        ccc:filePattern ?file_pattern ;
+        ccc:languageId ?language_id ;
+        ccc:analyzerModule ?analyzer_module ;
+        ccc:parserKind ?parser_kind ;
+        ccc:schemaSource ?schema_source .
+
+    OPTIONAL { ?surface_id ccc:schemaUrl ?schema_url . }
+}
+ORDER BY ?analyzer_module ?surface_label

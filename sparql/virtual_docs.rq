@@ -1,0 +1,10 @@
+PREFIX ccc: <https://claude-code-config-lsp.rs/ontology/>
+
+SELECT ?vdoc_uri ?vdoc_title ?vdoc_description
+WHERE {
+    ?vdoc_id a ccc:VirtualDocument ;
+        ccc:vdocUri ?vdoc_uri ;
+        ccc:vdocTitle ?vdoc_title ;
+        ccc:vdocDescription ?vdoc_description .
+}
+ORDER BY ?vdoc_uri
