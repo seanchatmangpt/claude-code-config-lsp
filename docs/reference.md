@@ -1,202 +1,249 @@
-# Reference
+# claude-code-config-lsp surface reference
 
-Authoritative lookup tables. Stable facts; no step-by-step guidance.
-
----
-
-## SKILL.md Frontmatter Field Reference
-
-| Field | Required | Type | Constraints | Scope |
-|---|---|---|---|---|
-| `name` | yes | string | ≤ 64 chars; lowercase, numbers, hyphens only; cannot contain `anthropic` or `claude` | CLI + SDK |
-| `description` | yes | string | Non-empty; ≤ 1024 chars; third-person; must state WHAT and WHEN | CLI + SDK |
-| `allowed-tools` | no | list | Tool names or `mcp__<server>__*` wildcards | **CLI only** |
-| `disallowed-tools` | no | list | Tool names explicitly blocked | CLI + SDK |
-| `context` | no | enum | `fork` — isolate Skill in a branched context | CLI + SDK |
-| `paths` | no | glob list | File path patterns the Skill may access | CLI + SDK |
-| `disable-model-invocation` | no | bool | Prevents the Skill from invoking additional model calls | CLI + SDK |
-
-### Skill Name Violation Codes
-
-| Code | Description |
-|---|---|
-| `CCC-SKILL-001` | Name exceeds 64 characters |
-| `CCC-SKILL-002` | Name contains uppercase characters |
-| `CCC-SKILL-003` | Name contains reserved word (`anthropic`, `claude`) |
-| `CCC-SKILL-004` | Description is missing or empty |
-| `CCC-SKILL-005` | Description exceeds 1024 characters |
-| `CCC-SKILL-006` | `allowed-tools` present — only applies in CLI mode (warning in SDK context) |
+Authoritative lookup tables. Stable facts; no procedural guidance.
 
 ---
 
-## AgentDefinition Fields (SDK)
+## Config surfaces
 
-| Field | Required | Type | Notes |
+| File pattern | Language ID | Analyzer | Primary diagnostic family |
 |---|---|---|---|
-| `description` | yes | string | When to auto-invoke this subagent; used for task matching |
-| `prompt` | yes | string | System prompt for the subagent context |
-| `tools` | no | string[] | Allowlist of tool names; defaults to parent's tool set |
-| `model` | no | string | Model override (e.g. `claude-haiku-4-5-20251001`) |
+| `**/.claude/settings*.json` | `claude-config-json` | `json` | `CCC-JSON-*` |
+| `**/.claude/agents/*.md` | `claude-config-markdown` | `frontmatter` | `CCC-FM-*` |
+| `**/.claude/skills/*/SKILL.md` | `claude-config-markdown` | `frontmatter` | `CCC-FM-*` |
+| `**/.claude/hooks/*.sh` | `shellscript` | `hook` | `CCC-HOOK-*` |
+| `**/.claude/lsp-max-auto.toml` | `claude-config-toml` | `toml` | `CCC-TOML-*` |
+| `**/CLAUDE.md`, `**/AGENTS.md` | `claude-config-markdown` | `claude_md` | `CCC-MD-*` |
+| `**/marketplace.json` | `claude-config-json` | `json` | `CCC-JSON-*` |
+| `**/plugin.json` | `claude-config-json` | `json` | `CCC-JSON-*` |
+| `**/mcp.json` | `claude-config-json` | `json` | `CCC-JSON-*` |
+| `**/keybindings.json` | `claude-config-json` | `json` | `CCC-JSON-*` |
 
 ---
 
-## MCP Tool Naming
+## settings.json schema
 
-| Pattern | Meaning |
-|---|---|
-| `mcp__<server>__<tool>` | Specific tool from a named MCP server |
-| `mcp__<server>__*` | All tools from a named MCP server (wildcard) |
-
-`<server>` is the MCP server name as declared in `.claude/settings.json` under
-`mcpServers`. `<tool>` is the tool's registered name on that server.
-
----
-
-## Claude Code Config File Surfaces
-
-| File / Pattern | Language ID | Analyzer Module | Config Surface |
+| Field | Type | Required | Notes |
 |---|---|---|---|
-| `CLAUDE.md` | `markdown` | `claude_md` | Project instructions |
-| `SKILL.md` | `markdown` | `claude_md` | Skill definition |
-| `.claude/settings.json` | `json` | `json` | Workspace settings |
-| `.claude/settings.local.json` | `json` | `json` | Local overrides |
-| `*.claude.json` | `json` | `json` | Portable config |
-| `.claude/hooks/*.sh` | `shellscript` | `hook` | Hook scripts |
-| Frontmatter in `.md` | `markdown` | `frontmatter` | YAML frontmatter |
-| `*.toml` (Claude config) | `toml` | `toml` | TOML config |
+| `model` | string | no | Versioned model ID. Haiku permitted for read-only agent roles only. |
+| `effort` | string enum | no | `low` \| `medium` \| `high` \| `max` |
+| `permissions.allow` | string[] | no | Tool names or glob patterns explicitly allowed |
+| `permissions.deny` | string[] | no | Tool names or glob patterns explicitly denied |
+| `hooks` | object | no | Keys: `PreToolUse`, `PostToolUse`, `Notification`, `Stop`, `SubagentStop` |
+| `hooks.<event>[].matcher` | string | no | Tool name or glob; empty string matches all |
+| `hooks.<event>[].hooks[].type` | string | yes | Must be `"command"` |
+| `hooks.<event>[].hooks[].command` | string | yes | Shell command to run |
+| `mcpServers` | object | no | Keyed by server name; each entry: `command`, `args`, `env` |
+| `lspServers` | array | no | Each entry: `name`, `command`, `args`, `extensionToLanguage` |
 
 ---
 
-## settings.json Schema
+## CLAUDE.md structure
 
-```json
-{
-  "model": "string — model ID",
-  "mcpServers": {
-    "<server-name>": {
-      "command": "string",
-      "args": ["string"],
-      "env": { "KEY": "value" }
-    }
-  },
-  "permissions": {
-    "allow": ["tool-name or glob"],
-    "deny": ["tool-name or glob"]
-  },
-  "hooks": {
-    "PreToolUse": [{ "matcher": "ToolName", "hooks": [{ "type": "command", "command": "..." }] }],
-    "PostToolUse": [...],
-    "Notification": [...],
-    "Stop": [...],
-    "SubagentStop": [...]
-  }
-}
-```
-
----
-
-## LSP Capabilities Emitted by claude-code-config-lsp
-
-| LSP Method | Status | Notes |
+| Section | Required | Notes |
 |---|---|---|
-| `textDocument/hover` | CANDIDATE | Field documentation from SKILL.md ontology |
-| `textDocument/completion` | CANDIDATE | Frontmatter field names, MCP tool patterns |
-| `textDocument/publishDiagnostics` | CANDIDATE | CCC-SKILL-* codes |
-| `textDocument/semanticTokens/full` | CANDIDATE | Token types: keyword, string, property, enumMember, namespace, variable |
-| `textDocument/semanticTokens/range` | CANDIDATE | Range-restricted semantic tokens |
+| `## Commands` | yes | Build and test recipes |
+| `## See Also` | no | Relative file paths; server checks that targets exist |
+| Hook event names in prose | no | `PreToolUse`, `PostToolUse` references are cross-checked against `settings.json` |
 
-All are CANDIDATE — receipt chains OPEN.
+Frontmatter is not required in CLAUDE.md or AGENTS.md.
 
 ---
 
-## RulePackServer Trait (lsp-max)
+## marketplace.json schema
 
-### Required methods
-
-```rust
-fn rule_packs(&self)  -> &ValidatedRulePackSet;
-fn grammar(&self)     -> tree_sitter::Language;
-fn server_name(&self) -> &'static str;
-fn client(&self)      -> &Client;
-fn adapter(&self)     -> &AutoLspAdapter;
-```
-
-### Optional overrides
-
-```rust
-fn workspace_index(&self)    -> Option<&WorkspaceIndex> { None }
-fn scan_uri_classified(&self, uri: &DocumentUri, content: &str) -> ClassifiedFindings {
-    // default: runs ValidatedRulePackSet against AST
-}
-```
-
-### Key types
-
-| Type | Import path | Notes |
-|---|---|---|
-| `AutoLspAdapter` | `lsp_max::ast::AutoLspAdapter` | Tree-sitter AST adapter |
-| `ValidatedRulePackSet` | `lsp_max::rule_pack_server::ValidatedRulePackSet` | Use `::empty()` for engine-bridge servers |
-| `WorkspaceIndex` | `lsp_max::rule_pack_server::WorkspaceIndex` | `Arc<DashMap<String, IndexedDoc>>` |
-| `ClassifiedFindings` | `lsp_max::rule_pack_server::ClassifiedFindings` | `(Vec<Finding>, Vec<Finding>)` sync + background |
-| `Finding` | `lsp_max::rule_pack_server::Finding` | `(MaxDiagnostic, Diagnostic)` |
-| `LawAxis` | `lsp_max::max_protocol::LawAxis` | `Domain`, `Security`, `Custom(String)`, etc. |
-
----
-
-## ggen.toml Rule Fields
-
-| Field | Type | Default | Notes |
+| Field | Type | Required | Notes |
 |---|---|---|---|
-| `name` | string | required | Unique rule identifier |
-| `query` | Pack\|File\|Inline | required | SPARQL SELECT source |
-| `template` | Pack\|File\|Inline | required | Tera template source |
-| `output_file` | Tera pattern | required | May contain `{{ var }}` for dynamic output |
-| `mode` | enum | `Create` | `Create` (fails if exists), `Overwrite`, `Merge` |
-| `skip_empty` | bool | `false` | If true, skip rule when query returns 0 rows |
-| `when` | SPARQL ASK | — | Gate rule on a boolean SPARQL query |
-
-### Query source variants
-
-```toml
-query = { inline = "SELECT ('value' AS ?col) WHERE {}" }
-query = { file  = "sparql/my_query.rq" }
-query = { pack  = "lsp-max", output = "queries", file = "capabilities.sparql" }
-```
-
-### Template source variants
-
-```toml
-template = { inline = "{% for row in results %}...{% endfor %}" }
-template = { file   = "templates/my_template.rs.tera" }
-template = { pack   = "lsp-max", output = "templates", file = "backend.rs.tera" }
-```
+| `name` | string | yes | Cannot begin with `claude-`, `anthropic-`, `mcp-core-` |
+| `owner` | string | yes | GitHub organization or user |
+| `plugins` | array | yes | One entry per plugin |
+| `plugins[].source` | string | yes | HTTPS URL or `local:<path>`. Bare paths and `http://` are refused. |
+| `plugins[].name` | string | no | Display name |
+| `plugins[].description` | string | no | Short description |
 
 ---
 
-## Tera Context Variables
+## plugin.json schema
 
-| Variable | Type | Value |
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `name` | string | yes | Plugin identifier |
+| `version` | string | yes | CalVer or SemVer |
+| `lspServers` | array | no | Each entry requires `name` and `command` |
+| `lspServers[].command` | string | yes | Binary name or path |
+| `lspServers[].args` | string[] | no | Defaults to `["--stdio"]` |
+| `lspServers[].extensionToLanguage` | object | yes | Extension → language ID mapping |
+| `skills` | array | no | Paths to SKILL.md files included in the plugin |
+| `agents` | array | no | Paths to agent definition files |
+| `hooks` | object | no | Same structure as `settings.json` hooks |
+| `mcpServers` | object | no | Same structure as `settings.json` mcpServers |
+
+---
+
+## mcp.json schema
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `mcpServers` | object | yes | Keyed by server name |
+| `mcpServers.<name>.command` | string | yes | Executable |
+| `mcpServers.<name>.args` | string[] | no | Command arguments |
+| `mcpServers.<name>.env` | object | no | Environment variables injected at startup |
+| `mcpServers.<name>.type` | string | no | `stdio` (default) \| `sse` |
+
+---
+
+## Agent frontmatter schema (`.claude/agents/*.md`)
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `name` | string | yes | Identifier; lowercase, hyphens, max 64 chars |
+| `description` | string | yes | When to invoke this agent; used for auto-routing |
+| `model` | string | no | Model ID override. Haiku: read-only roles only. |
+| `effort` | string | no | `low` \| `medium` \| `high` \| `max` |
+| `maxTurns` | integer | no | Maximum turns before the agent stops |
+| `tools` | string[] | no | Tool allowlist; defaults to parent's set |
+| `disallowedTools` | string[] | no | Tools explicitly blocked |
+| `isolation` | string | no | `worktree` — agent runs in a git worktree |
+
+---
+
+## Skill frontmatter schema (`.claude/skills/*/SKILL.md`)
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `name` | string | yes | Identifier; lowercase, hyphens, max 64 chars |
+| `description` | string | yes | Max 1024 chars. States WHAT and WHEN. Used for discovery. |
+| `disable-model-invocation` | boolean | no | Prevents additional model calls from within the Skill |
+
+---
+
+## Hook script requirements
+
+| Requirement | Diagnostic | Notes |
 |---|---|---|
-| `results` | array | All rows from the SPARQL SELECT |
-| `row.<col>` | string | Column value for current row (in `{% for row in results %}`) |
-| `<col>` | string | First-row scalar shorthand (static templates only) |
+| Shebang on line 1 | `CCC-HOOK-001` | `#!/usr/bin/env bash` or `#!/bin/sh` |
+| At least one non-zero exit path | `CCC-HOOK-002` | `PreToolUse` hooks with only `exit 0` provide no blocking |
+| Valid env var references | `CCC-HOOK-003` | Only injected vars: `CLAUDE_TOOL_NAME`, `CLAUDE_TOOL_INPUT`, `CLAUDE_SESSION_ID` |
 
-Zero-row behavior: if `skip_empty = false` (default) and query returns 0 rows,
-the output file is not written — the declared `output_file` never appears. Use
-`skip_empty = true` only where an absent file is acceptable.
+Hook type is inferred from the filename stem: `pre-tool-use*` → `PreToolUse`,
+`post-tool-use*` → `PostToolUse`, `stop*` → `Stop`, `subagent-stop*` →
+`SubagentStop`, `notification*` → `Notification`.
 
 ---
 
-## Conformance Status Vocabulary
+## Virtual document URIs
+
+| URI | Content | Notes |
+|---|---|---|
+| `claude-config://health` | `WorkspaceConformance` JSON | Live server state: score, surfaces_checked, surfaces_admitted, violations list |
+
+---
+
+## Diagnostic code families
+
+### CCC-JSON-* — JSON surface violations
+
+| Code | Severity | Surface | Description |
+|---|---|---|---|
+| `CCC-JSON-001` | Error | settings.json | Unknown or unversioned model identifier |
+| `CCC-JSON-002` | Error | marketplace.json | Missing required top-level field |
+| `CCC-JSON-003` | Error | marketplace.json | Invalid source URL format |
+| `CCC-JSON-004` | Error | marketplace.json | Reserved plugin name prefix |
+| `CCC-JSON-005` | Error | plugin.json | Missing `lspServers[].command` |
+| `CCC-JSON-006` | Warning | plugin.json | Missing `extensionToLanguage` mapping |
+| `CCC-JSON-007` | Error | mcp.json | Missing `mcpServers.<name>.command` |
+| `CCC-JSON-008` | Warning | keybindings.json | Unknown key binding action |
+
+### CCC-MD-* — Markdown surface violations
+
+| Code | Severity | Surface | Description |
+|---|---|---|---|
+| `CCC-MD-001` | Error | CLAUDE.md, AGENTS.md | Missing required section |
+| `CCC-MD-002` | Warning | CLAUDE.md | Broken `## See Also` link (target file not found) |
+| `CCC-MD-003` | Warning | CLAUDE.md | Hook event name referenced in prose but not wired in settings.json |
+
+### CCC-FM-* — Frontmatter violations
+
+| Code | Severity | Surface | Description |
+|---|---|---|---|
+| `CCC-FM-001` | Error | agents/*.md, SKILL.md | Missing required frontmatter field |
+| `CCC-FM-002` | Error | agents/*.md, SKILL.md | `name` field violates naming constraints |
+| `CCC-FM-003` | Warning | agents/*.md | Haiku model in a writing agent role |
+| `CCC-FM-004` | Warning | SKILL.md | `description` exceeds 1024 characters |
+| `CCC-FM-005` | Info | SKILL.md | `allowed-tools` present — CLI only, ignored by SDK |
+
+### CCC-HOOK-* — Hook script violations
+
+| Code | Severity | Description |
+|---|---|---|
+| `CCC-HOOK-001` | Error | Missing shebang on line 1 |
+| `CCC-HOOK-002` | Warning | No non-zero exit path — hook cannot block tool calls |
+| `CCC-HOOK-003` | Warning | Reference to env var not injected by Claude Code |
+
+### CCC-TOML-* — TOML config violations
+
+| Code | Severity | Description |
+|---|---|---|
+| `CCC-TOML-001` | Error | Parse error in `.claude/lsp-max-auto.toml` |
+| `CCC-TOML-002` | Warning | Unknown top-level key |
+
+---
+
+## OCEL event types
+
+All six activities are object-centric; the object is the config surface URI.
+
+| Activity | Attributes | Notes |
+|---|---|---|
+| `ConfigSurfaceOpened` | `uri`, `language_id`, `surface_type` | Emitted on `didOpen` |
+| `DiagnosticPublished` | `uri`, `code`, `severity`, `message` | One event per diagnostic emitted |
+| `ConformanceChecked` | `uri`, `score`, `admitted`, `refused` | After each `analyze()` call |
+| `HoverRequested` | `uri`, `line`, `character`, `field_name` | On `textDocument/hover` |
+| `CompletionRequested` | `uri`, `line`, `character`, `trigger` | On `textDocument/completion` |
+| `RepairApplied` | `uri`, `code`, `before_count`, `after_count` | When diagnostic count decreases after a change |
+
+---
+
+## Declare constraints (formal semantics)
+
+All four constraints are LTL-based Declare templates applied to the OCEL event
+stream, per trace keyed on config surface URI.
+
+| Constraint | Formal | Meaning |
+|---|---|---|
+| `Precedence("WorkspaceIndexed", "LsifExported")` | □(LsifExported → ◇[past] WorkspaceIndexed) | LSIF export can only occur after workspace indexing |
+| `Response("CompletionRequested", "CompletionProvided")` | □(CompletionRequested → ◇ CompletionProvided) | Every completion request must be answered |
+| `Response("DocumentOpened", "DiagnosticsPublished")` | □(DocumentOpened → ◇ DiagnosticsPublished) | Every open must produce a diagnostic publication |
+| `Response("HoverRequested", "HoverProvided")` | □(HoverRequested → ◇ HoverProvided) | Every hover request must be answered |
+
+A pm4py conformance check against these constraints detects silent failures:
+e.g., `DiagnosticsPublished` events without a preceding `DocumentOpened` indicate
+a server publishing unsolicited diagnostics, which violates `Response` in reverse.
+
+---
+
+## Haiku policy
+
+Haiku models (`claude-haiku-*`) are permitted only for agent roles that are
+**read-only**: roles that never write files, never edit configuration, and never
+invoke tools that mutate state.
+
+Any agent that writes files — including configuration surfaces — must use
+`claude-sonnet-4-6`. This is a hard policy, not a recommendation. The
+`CCC-FM-003` diagnostic enforces it for agent frontmatter.
+
+---
+
+## Conformance status vocabulary
 
 | Status | Meaning |
 |---|---|
 | `ADMITTED` | Law axis passes; receipt chain closed |
 | `CANDIDATE` | Implementation present; receipt chain OPEN |
 | `BLOCKED` | Dependency or prerequisite unmet |
-| `REFUSED` | Law axis explicitly rejects (e.g. forbidden ref detected) |
+| `REFUSED` | Law axis explicitly rejects |
 | `UNKNOWN` | Axis not yet traced; cannot collapse to ADMITTED or REFUSED |
-| `PARTIAL` | Some axes admitted, others open |
+| `PARTIAL` | Some axes admitted, others OPEN |
 | `OPEN` | Absent; setup required |
 
 Never use: `done`, `complete`, `solved`, `guaranteed`, `all clean`.

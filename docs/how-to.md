@@ -1,231 +1,242 @@
-# How-to Guides
+# How-to: common tasks with claude-code-config-lsp
 
-Concrete recipes for specific tasks. Each guide assumes the server bootstraps
-via `ggen sync` and the lsp-max `RulePackServer` trait.
+Concrete recipes for specific tasks. Each recipe assumes the plugin is installed
+and the server is running inside a Claude Code session.
 
 ---
 
-## Add a diagnostic for SKILL.md frontmatter violations
+## 1. Validate all config surfaces in a workspace
 
-SKILL.md files must have frontmatter that satisfies the Claude Code Skill naming
-contract: `name` ≤ 64 chars, lowercase/hyphens only, no reserved words
-(`anthropic`, `claude`); `description` non-empty, ≤ 1024 chars.
+When the plugin is installed, validation is automatic — every covered file that
+the agent opens or changes is analyzed immediately. To trigger validation across
+all surfaces at once, instruct the agent to open each covered file:
 
-**1 — Declare the surface in the ontology**
+```
+Open .claude/settings.json, .claude/settings.local.json, CLAUDE.md, AGENTS.md,
+all files in .claude/agents/, all SKILL.md files under .claude/skills/,
+all .sh files under .claude/hooks/, and .claude/lsp-max-auto.toml.
+```
+
+The server publishes diagnostics for each file as it is opened. After all files
+are opened, query `claude-config://health` to see the aggregate
+`WorkspaceConformance` score and the full violation list.
+
+---
+
+## 2. Add a new config surface to the ontology
+
+Never edit generated source directly. The ontology is the source of truth.
+
+**1 — Add a `ConfigSurface` individual to `schema/claude-code-config.ttl`:**
 
 ```turtle
-@prefix ccc: <https://claude-code-config-lsp.rs/ontology/> .
-
-ccc:SkillMd a ccc:ConfigSurface ;
-    ccc:filePattern      "SKILL.md" ;
-    ccc:analyzerModule   "claude_md" ;
-    ccc:analyzerModulePascal "ClaudeMd" ;
-    ccc:languageId       "markdown" .
+ccc:MyNewSurface a ccc:ConfigSurface ;
+    ccc:filePattern        "**/.claude/my-new-config.json" ;
+    ccc:languageId         "claude-config-json" ;
+    ccc:analyzerModule     "json" ;
+    ccc:analyzerModulePascal "Json" .
 ```
 
-**2 — Run `ggen sync`**
+The `analyzerModule` value maps to the existing `src/analyzers/json.rs` — if
+the new surface needs its own analyzer, give it a unique module name and
+implement the stub that `ggen sync` generates.
 
-`src/analyzers/claude_md.rs` appears with a stub `analyze()` function.
-
-**3 — Implement the validation logic**
-
-```rust
-// src/analyzers/claude_md.rs  (generated stub — fill in the logic)
-use lsp_max::lsp_types::{Diagnostic, DiagnosticSeverity, Range, Position};
-
-pub fn analyze(content: &str) -> Vec<Diagnostic> {
-    let mut diags = Vec::new();
-    let Some(fm) = extract_frontmatter(content) else { return diags };
-
-    if let Some(name) = fm.get("name") {
-        if name.len() > 64 {
-            diags.push(Diagnostic {
-                range: Range::new(Position::new(1, 0), Position::new(1, name.len() as u32)),
-                severity: Some(DiagnosticSeverity::ERROR),
-                code: Some(lsp_max::lsp_types::NumberOrString::String(
-                    "CCC-SKILL-001".into(),
-                )),
-                message: format!("Skill name exceeds 64 characters ({} chars)", name.len()),
-                ..Default::default()
-            });
-        }
-        if name.chars().any(|c| c.is_uppercase()) {
-            diags.push(/* CCC-SKILL-002: uppercase chars forbidden */);
-        }
-        for reserved in &["anthropic", "claude"] {
-            if name.contains(reserved) {
-                diags.push(/* CCC-SKILL-003: reserved word */);
-            }
-        }
-    }
-
-    if fm.get("description").map(|d| d.is_empty()).unwrap_or(true) {
-        diags.push(/* CCC-SKILL-004: description required and non-empty */);
-    }
-
-    diags
-}
-```
-
-**4 — Wire the analyzer into the backend**
-
-Override `scan_uri_classified` in `src/backend.rs`:
-
-```rust
-fn scan_uri_classified(&self, uri: &DocumentUri, content: &str) -> ClassifiedFindings {
-    if uri.ends_with("SKILL.md") {
-        let findings = crate::analyzers::claude_md::analyze(content)
-            .into_iter()
-            .map(|d| (MaxDiagnostic { lsp: d.clone(), ..Default::default() }, d))
-            .collect();
-        return (findings, vec![]);
-    }
-    (vec![], vec![])
-}
-```
-
----
-
-## Add hover for SKILL.md frontmatter fields
-
-Hovering on `allowed-tools:` in a SKILL.md should show what values are legal
-and whether the field applies in CLI vs SDK mode.
-
-**1 — Extend `src/hover.rs`**
-
-```rust
-pub async fn handle_hover(uri: &str, line: u32, content: &str) -> Option<Hover> {
-    if !uri.ends_with("SKILL.md") { return None; }
-
-    let text = content.lines().nth(line as usize)?;
-    let field = text.split(':').next()?.trim();
-
-    let markdown = match field {
-        "name" => "**`name`** *(required)*\n\nMax 64 chars. Lowercase, numbers, \
-                   hyphens only. Cannot contain `anthropic` or `claude`.",
-        "description" => "**`description`** *(required)*\n\nMax 1024 chars. \
-                          Third-person. Must include both what the Skill does \
-                          and when to trigger it. Claude selects Skills from \
-                          100+ available by matching this text.",
-        "allowed-tools" => "**`allowed-tools`** *(optional, CLI only)*\n\nList \
-                            of tool names this Skill may invoke. **CLI only** — \
-                            ignored when accessed through the Agent SDK. Use \
-                            `allowedTools` in SDK `query()` config instead.",
-        "disallowed-tools" => "**`disallowed-tools`** *(optional)*\n\nTools \
-                               explicitly blocked for this Skill.",
-        "context" => "**`context`** *(optional)*\n\nSet to `fork` to run this \
-                      Skill in an isolated context branch.",
-        "paths" => "**`paths`** *(optional)*\n\nGlob patterns limiting which \
-                    files this Skill can access.",
-        _ => return None,
-    };
-
-    Some(Hover {
-        contents: HoverContents::Markup(MarkupContent {
-            kind: MarkupKind::Markdown,
-            value: markdown.to_string(),
-        }),
-        range: None,
-    })
-}
-```
-
----
-
-## Add completion for MCP tool references
-
-When editing `allowed-tools:` in SKILL.md or `allowedTools` in JSON config,
-offer completions following the `mcp__<server>__<tool>` naming pattern.
-
-**1 — Extend `src/completion.rs`**
-
-```rust
-pub async fn handle_completion(
-    uri: &str, line: u32, character: u32, content: &str,
-) -> Option<CompletionResponse> {
-    let text = content.lines().nth(line as usize)?;
-
-    // Trigger inside allowed-tools list
-    if text.trim_start().starts_with("allowed-tools") || text.contains("allowedTools") {
-        let partial = word_at(text, character as usize);
-
-        let mut items = vec![
-            // Standard Claude Code tools
-            completion_item("Bash", "Execute shell commands"),
-            completion_item("Read", "Read files"),
-            completion_item("Edit", "Edit files"),
-            completion_item("Write", "Write files"),
-            completion_item("Glob", "Glob file patterns"),
-        ];
-
-        // MCP wildcard pattern hint
-        if partial.starts_with("mcp__") {
-            items.push(CompletionItem {
-                label: "mcp__<server>__*".into(),
-                kind: Some(CompletionItemKind::SNIPPET),
-                detail: Some("Allow all tools from an MCP server".into()),
-                insert_text: Some("mcp__${1:server-name}__*".into()),
-                insert_text_format: Some(InsertTextFormat::SNIPPET),
-                ..Default::default()
-            });
-        }
-
-        return Some(CompletionResponse::Array(items));
-    }
-
-    None
-}
-```
-
----
-
-## Add SKILL.md description length diagnostic
-
-The description field has a 1024-character limit enforced by Claude Code at
-runtime. Warn early:
-
-```rust
-if let Some(desc) = fm.get("description") {
-    if desc.len() > 1024 {
-        diags.push(Diagnostic {
-            range: /* description line range */,
-            severity: Some(DiagnosticSeverity::WARNING),
-            code: Some(NumberOrString::String("CCC-SKILL-005".into())),
-            message: format!(
-                "Skill description exceeds 1024 characters ({} chars). \
-                 Claude may truncate during Skill discovery.",
-                desc.len()
-            ),
-            ..Default::default()
-        });
-    }
-    if desc.is_empty() {
-        diags.push(/* CCC-SKILL-004 */);
-    }
-}
-```
-
----
-
-## Re-generate after schema changes
-
-After editing any `.ttl`, `.rq`, or `ggen.toml`:
+**2 — Run `ggen sync`:**
 
 ```sh
-ggen sync          # regenerate
-cargo check        # verify it compiles
-cargo clippy --all-targets -- -D warnings   # verify no warnings
-cargo test         # verify tests pass
+ggen sync
 ```
 
-Never edit generated files in `src/` directly — edit the ontology or the pack
-templates in `../lsp-max/templates/lsp-max/` and regenerate.
+`src/file_types.rs` is regenerated with the new pattern in the `language_id`
+match. If a new analyzer module was declared, the stub appears at
+`src/analyzers/<module>.rs`.
+
+**3 — Verify:**
+
+```sh
+cargo check
+cargo test
+```
 
 ---
 
-## Wire a new analyzer into the module graph
+## 3. Add a new diagnostic rule to an existing analyzer
 
-When a new `ConfigSurface` individual is added to the ontology and `ggen sync`
-runs, `src/analyzers/mod.rs` and `src/lib.rs` are both regenerated automatically
-— the new module is declared in the right places. The only manual step is
-implementing the validation body in the generated analyzer stub.
+All diagnostic rules flow from the ontology. Adding a rule means:
+
+**1 — Add a `DiagnosticRule` individual to the TTL:**
+
+```turtle
+ccc:RequireHooksSection a ccc:DiagnosticRule ;
+    ccc:code         "CCC-MD-003" ;
+    ccc:surface      ccc:ClaudeMd ;
+    ccc:severity     ccc:Error ;
+    ccc:message      "CLAUDE.md is missing a Hooks section documenting registered hooks." .
+```
+
+**2 — Run `ggen sync`** to propagate the code into the `StaticSchema` registry
+and any hover/completion tables that list diagnostic codes.
+
+**3 — Implement the check** in `src/analyzers/claude_md.rs`:
+
+```rust
+// Check for ## Hooks section
+if !content.contains("## Hooks") {
+    diags.push(Diagnostic {
+        range: Range::new(Position::new(0, 0), Position::new(0, 0)),
+        severity: Some(DiagnosticSeverity::ERROR),
+        code: Some(NumberOrString::String("CCC-MD-003".into())),
+        message: "CLAUDE.md is missing a Hooks section documenting registered hooks.".into(),
+        ..Default::default()
+    });
+}
+```
+
+The ontology entry ensures the code appears in hover docs and the reference
+table. The Rust implementation is what enforces it at runtime.
+
+---
+
+## 4. Use hover to get field documentation in an agent loop
+
+The `hover.rs` module returns field documentation when the agent positions the
+cursor over a recognized key. In an agent loop, the agent sends
+`textDocument/hover` before writing to a field it is uncertain about.
+
+**settings.json — hovering on `"model"`:**
+
+```
+Field: model
+Type: string
+Required: no (defaults to claude-sonnet-4-6)
+Description: Model ID for this workspace. Must be a versioned identifier.
+             Haiku models are permitted only for agents in read-only roles.
+Example: "claude-sonnet-4-6"
+```
+
+**Agent frontmatter — hovering on `effort`:**
+
+```
+Field: effort
+Type: string enum
+Values: low | medium | high | max
+Required: no (defaults to medium)
+Description: Token budget hint for this subagent. "max" disables budget
+             enforcement; use only for tasks that require deep reasoning.
+```
+
+**Hook scripts — hovering on `PreToolUse`:**
+
+```
+Event: PreToolUse
+Injected env vars: CLAUDE_TOOL_NAME, CLAUDE_TOOL_INPUT (JSON)
+Exit semantics: exit 0 = allow tool call; exit 1 = block tool call
+Scope: Runs before every tool invocation that matches the hook's matcher.
+```
+
+An agent that uses hover before writing avoids the write → diagnostic → correct
+cycle for fields it already knows about.
+
+---
+
+## 5. Fix marketplace.json violations
+
+Common `CCC-JSON-*` violations in `marketplace.json`:
+
+**Missing `name` field (CCC-JSON-002):**
+
+```json
+{
+  "plugins": [{ "source": "..." }]
+}
+```
+
+Fix: add `"name"` at the top level:
+
+```json
+{
+  "name": "my-org-marketplace",
+  "owner": "my-org",
+  "plugins": [{ "source": "..." }]
+}
+```
+
+**Invalid source format (CCC-JSON-003):** `source` must be a full HTTPS URL or
+a `local:<path>` reference. Bare paths and `http://` sources are refused.
+
+```json
+{ "source": "github.com/my-org/my-plugin" }   // CCC-JSON-003
+{ "source": "https://github.com/my-org/my-plugin" }  // CANDIDATE
+```
+
+**Reserved plugin name (CCC-JSON-004):** names beginning with `claude-`,
+`anthropic-`, or `mcp-core-` are reserved.
+
+---
+
+## 6. Fix plugin.json violations
+
+The `plugin.json` at `.claude-plugin/plugin.json` declares the server. Common
+violations:
+
+**Missing `lspServers.command` (CCC-JSON-005):**
+
+```json
+{
+  "lspServers": [{ "name": "my-lsp" }]
+}
+```
+
+Fix: add `"command"` pointing at the binary:
+
+```json
+{
+  "lspServers": [{
+    "name": "my-lsp",
+    "command": "my-lsp-binary",
+    "args": ["--stdio"]
+  }]
+}
+```
+
+**Missing `extensionToLanguage` (CCC-JSON-006):** without this mapping, Claude
+Code does not know which files to send to the server.
+
+```json
+{
+  "extensionToLanguage": {
+    ".json": "claude-config-json",
+    ".md": "claude-config-markdown"
+  }
+}
+```
+
+---
+
+## 7. Check config conformance before committing
+
+Before committing changes to config surfaces, query `WorkspaceConformance`:
+
+```
+Read the virtual document at claude-config://health.
+If score < 1.0, list the violations and fix each one before proceeding.
+```
+
+In an automated pre-commit hook at `.claude/hooks/pre-commit.sh`:
+
+```sh
+#!/usr/bin/env bash
+# Query the health virtual doc via the LSP client CLI
+score=$(lsp-max-cli snapshot read --uri "claude-config://health" \
+        | jq -r '.score')
+
+if [ "$(echo "$score < 1.0" | bc)" = "1" ]; then
+    echo "Config conformance BLOCKED: score=$score"
+    lsp-max-cli snapshot read --uri "claude-config://health" \
+        | jq -r '.violations[]'
+    exit 1
+fi
+```
+
+This gate prevents the agent from committing config surfaces that the analyzer
+has already rejected.

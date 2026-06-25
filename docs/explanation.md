@@ -1,148 +1,196 @@
-# Explanation
+# Why Claude Code config is a first-class law surface
 
-Conceptual background — the "why" behind the design.
-
----
-
-## Why ggen and the lsp-max pack?
-
-An LSP server is a large, repetitive artifact: `initialize`, `textDocument/hover`,
-`textDocument/completion`, `textDocument/publishDiagnostics`, `shutdown`, and
-many more — all following identical structural patterns but with domain-specific
-logic at the leaves. Hand-writing this structure invites drift between capability
-advertisement (what the server claims it can do) and handler registration (what
-it actually does), between the diagnostic codes in the hover docs and the codes
-the analyzers emit, and between the tree-sitter grammar and the semantic token
-legend.
-
-The ggen + lsp-max pack approach collapses all these surfaces to a single source
-of truth: the domain ontology (`.ttl`). The ontology describes:
-- Which config file types exist (`ccc:ConfigSurface`)
-- Which LSP methods are ADMITTED/CANDIDATE/REFUSED (`law:status`)
-- Which schema fields each surface exposes
-- Which semantic token types the grammar produces
-
-Every generated Rust file is a projection of that ontology through a Tera
-template. When a new Skill frontmatter field is added to the spec, you add one
-triple to the `.ttl`, run `ggen sync`, and hover docs, completion items, and
-diagnostic codes all update in lockstep.
+Conceptual background — the "why" behind the design. This is not a how-to;
+it is an account of the forces that produced the architecture.
 
 ---
 
-## The three-tier Skill loading architecture and LSP hover
+## Claude Code as the agent being governed
 
-Claude Code loads Skills lazily:
+Claude Code is an AI coding agent. It reads files, writes files, runs shell
+commands, and manages its own configuration. The configuration surfaces —
+`settings.json`, `CLAUDE.md`, `agents/*.md`, `skills/*/SKILL.md`,
+`hooks/*.sh`, `marketplace.json`, `plugin.json` — are the law that governs
+what the agent is allowed to do, how it routes tasks to subagents, and which
+tools it may invoke.
 
-1. **Level 1** (~100 tokens, always present): `name` and `description` metadata.
-   Claude uses these for discovery — the description text is injected into the
-   system prompt and matched against the current task.
-2. **Level 2** (loaded on trigger): Full `SKILL.md` content. This is the
-   detailed instructions layer.
-3. **Level 3+** (on demand): Resources referenced in the SKILL.md body.
+When the agent edits these surfaces, it is rewriting its own governing law.
+This is not a hypothetical: agents routinely add hook scripts, extend
+`CLAUDE.md` with new instructions, and write agent definitions for subagent
+delegation. Every one of these edits is a write to a law surface.
 
-This architecture explains why the LSP hover for the `description` field must
-emphasise the discovery contract — if a description is vague or passive, Claude
-cannot select the Skill even if it is formally correct. The LSP diagnostic
-`CCC-SKILL-005` (description too long, > 1024 chars) is not just a formatting
-issue: a long description pushes more tokens into the Level 1 context, raising
-costs for every Claude Code session that has the Skill installed.
-
----
-
-## CLI vs SDK tool permissioning and why the LSP warns
-
-`allowed-tools` in SKILL.md frontmatter only takes effect when Skills are
-invoked through the Claude Code CLI. When a Skill is accessed through the Agent
-SDK (`query({ skills: ['my-skill'] })`), tool access is governed by the SDK
-caller's `allowedTools` option — not by the frontmatter.
-
-This is a common source of confusion and a real divergence in security posture:
-a Skill author might believe they have restricted a Skill to `Read`-only access,
-but SDK callers can override that by not passing any `allowedTools` restriction.
-
-The LSP surfaces this with a `CCC-SKILL-006` warning on `allowed-tools:` lines:
-> This field only applies in CLI mode. SDK callers control tool access through
-> `allowedTools` in the query configuration.
+Without an ambient witness, the agent has no signal that a law surface edit
+was malformed until it tries to use the result — which may be sessions later,
+after the context that produced the error is long gone.
 
 ---
 
-## Why generated files are source
+## Why config errors are silent without LSP
 
-The ggen-generated `.rs` files under `src/` are first-class source. The
-`GGEN-SRC-*` diagnostic family enforces this:
-- Files must not be in `generated/`, `output/`, `gen/` paths
-- Files must not carry `DO NOT EDIT` banners
-- The fact that ggen produced a file does not demote it
+The Claude Code runtime validates configuration lazily. A `settings.json`
+with an unknown model ID does not fail at write time; it fails when the agent
+tries to start a session with that model. A `CLAUDE.md` missing a required
+section does not fail at write time; it degrades agent behavior silently,
+because the section that would have guided the agent simply does not exist.
 
-The practical consequence: if a generated analyzer stub contains wrong logic,
-the fix goes into either the domain ontology (if the schema changed) or the pack
-template (if the code pattern was wrong). If neither, the stub is a starting
-point and the implementation body is a legitimate developer contribution — ggen
-provides structure, not finished logic.
+This is the gap: **between the moment the agent writes a law surface and the
+moment the agent exercises it, there is no witness.**
 
----
+LSP closes the gap. The LSP protocol's `textDocument/publishDiagnostics`
+notification is push-based: the server sends diagnostics to the client without
+the client asking. This means the moment the agent writes to a covered file,
+the server can immediately — in the same agent turn — send back a diagnostic
+describing what is wrong and why.
 
-## Receipt chain and CANDIDATE status
-
-All capabilities in this server are currently `CANDIDATE`. A capability moves to
-`ADMITTED` only when three artifacts exist:
-
-1. **Transcript**: An LSP exchange (request + response) demonstrating the
-   capability in operation, stored as a `.transcript.json` file.
-2. **Negative control**: A test demonstrating that the capability correctly
-   refuses a malformed or out-of-scope input.
-3. **Receipt**: A `-----BEGIN RECEIPT-----` bounded record with a SHA256 digest
-   chain linking the transcript and negative control artifacts.
-
-Until all three exist, `CANDIDATE` is the honest status. Collapsing `CANDIDATE`
-to `ADMITTED` without evidence is a law violation detected by anti-llm-cheat-lsp.
+The agent receives the diagnostic the same way a human editor receives a red
+squiggle. The correction loop is synchronous with the write, not deferred to
+a future session.
 
 ---
 
-## The Van der Aalst process mining hook
+## The ggen + ontology architecture
 
-The lsp-max compositor accumulates OCEL 2.0 events for every LSP interaction.
-This is not observability for its own sake — it is a process conformance
-mechanism. The Declare constraint model (`src/declare_model.rs`) defines the
-normative process for how config surfaces should flow through the validation
-pipeline:
+claude-code-config-lsp is generated from an RDF ontology
+(`schema/claude-code-config.ttl`). The ontology describes:
 
-1. `didOpen` → analyzer runs → diagnostics published
-2. `didChange` → analyzer runs → diagnostics updated
-3. `hover` → field looked up → docs returned
+- Which config file types exist (`ccc:ConfigSurface` individuals)
+- Which schema fields each surface exposes (`ccc:SchemaField`)
+- Which diagnostic rules apply to each surface (`ccc:DiagnosticRule`)
+- Which Declare constraints govern the event flow (`ccc:DeclareConstraint`)
+- Which OCEL activity types the server emits
 
-A pm4py-based conformance check against the OCEL log can detect violations like
-diagnostics published without a preceding `didOpen`, or hover responses for URIs
-that were never opened. These are impossible to detect from unit tests alone —
-they require event log evidence against the normative process model.
+SPARQL queries extract rows from the ontology. Tera templates render those
+rows into Rust source: `src/file_types.rs`, `src/schema.rs`,
+`src/analyzers/mod.rs`, hover tables, completion tables, the Declare model.
 
----
+The consequence is that the TTL is the source of truth, not the Rust code.
+When a new field is added to the Claude Code agent frontmatter spec, the
+change goes into the TTL, `ggen sync` runs, and hover documentation,
+completion items, and diagnostic codes all update in lockstep. There is no
+risk of documentation describing fields the analyzer does not check, or the
+analyzer checking fields that hover does not document, because both are
+projections of the same ontology.
 
-## Why `DISTINCT` in config_surfaces.rq matters
-
-The domain ontology can have many `ConfigSurface` individuals that share the
-same `analyzerModule` — e.g., `.claude/settings.json` and `.claude/settings.local.json`
-both map to the `json` analyzer module. Without `DISTINCT`, the SPARQL query
-returns one row per surface, producing duplicate `pub mod json;` declarations in
-`src/analyzers/mod.rs` and duplicate analyzer files attempted by the dynamic
-`output_file = "src/analyzers/{{ analyzer_module }}.rs"` rule.
-
-`DISTINCT` collapses these to one row per unique module name. The rule generates
-one file per module, not one file per surface — the analyzer file itself uses
-a pattern match on the URI to distinguish which surface it is validating.
+Generated Rust files are first-class source. The `GGEN-SRC-*` diagnostic
+family enforces this: generated files must not carry `DO NOT EDIT` banners,
+must not live in `generated/` or `output/` paths, and must be inspected and
+maintained as source. If a generated analyzer stub contains wrong logic, the
+fix goes into the ontology or the pack template — not into a hand-edited
+workaround that diverges from the TTL on the next `ggen sync`.
 
 ---
 
-## ConformanceVector and the Unknown invariant
+## The five surfaces of Claude Code config law
 
-`ConformanceVector` carries three sets: `admitted`, `refused`, `unknown`. The
-`unknown` set is not a default or a placeholder — it is a first-class state that
-means "this law axis has not been traced and we cannot claim it passes or fails."
+Claude Code configuration is not a single file. It is five distinct law
+surfaces, each governing a different aspect of agent behavior:
 
-Collapsing `unknown` into either `admitted` or `refused` is a law violation.
-In practice this means:
-- A capability that has never been tested is `UNKNOWN`, not `ADMITTED`
-- A diagnostic code that exists in the reference but has not been verified
-  against a real Claude Code session is `UNKNOWN`
-- `UNKNOWN` is not a bug to be fixed by asserting a value; it is an honest
-  statement of incomplete evidence that requires tracing work
+**1. Settings** (`settings.json`, `settings.local.json`) — what the agent
+can do. Model selection, tool permissions, hook wiring, MCP server
+declarations. This is the runtime permission surface: it determines which
+tools the agent may call, which hooks block or observe those calls, and which
+model executes the agent's reasoning.
+
+**2. Marketplace** (`marketplace.json`) — what plugins are available. The
+marketplace surface governs which external capabilities can be added to the
+agent's environment. A malformed marketplace entry can cause silent failures
+when the agent tries to install a plugin.
+
+**3. Plugins** (`plugin.json`) — what a plugin provides. Each plugin
+declares its LSP servers, skills, agents, hooks, and MCP servers. The
+plugin.json surface is the contract between the plugin author and the Claude
+Code runtime: a missing `lspServers[].command` means the LSP server never
+starts, and the agent gets no diagnostics from it.
+
+**4. Agents** (`agents/*.md`) — how subagents behave. Agent definitions
+declare the model, effort, tool set, isolation mode, and routing description
+for each subagent. The `description` field is used by Claude Code for
+automatic subagent routing: if it is vague, the wrong subagent is invoked.
+If the model field specifies Haiku for a writing agent, the Haiku policy is
+violated.
+
+**5. Skills** (`skills/*/SKILL.md`) — what skills are available. Skill
+definitions declare the discovery metadata and tool restrictions for each
+skill. The `description` field is injected into the system prompt for skill
+discovery: if it exceeds 1024 characters, Claude Code may truncate it,
+breaking discovery. The `allowed-tools` field is CLI-only: SDK callers
+control tool access through a different mechanism, and an agent relying on
+`allowed-tools` for security in an SDK context has a silent permission gap.
+
+---
+
+## How plugin marketplace distribution closes the deployment gap
+
+An LSP server that is not installed provides no diagnostics. The plugin
+marketplace mechanism solves this by making claude-code-config-lsp
+installable with a single command:
+
+```
+/plugin marketplace add https://github.com/seanchatmangpt/claude-code-config-lsp
+/plugin install claude-code-config-lsp@claude-code-config-lsp
+```
+
+The plugin's `plugin.json` declares the `lspServers` entry that wires the
+binary into Claude Code's LSP client. After install, the server is ambient:
+it starts automatically, watches covered file patterns, and pushes diagnostics
+without any further configuration by the agent or the agent developer.
+
+The marketplace model also means the server can be distributed alongside the
+skills and agents that depend on correct configuration. A skill that requires
+a specific `settings.json` structure can declare that structure in its
+`SKILL.md`, and the LSP server will validate it the moment the agent writes
+the settings file.
+
+---
+
+## The relationship to lsp-max
+
+claude-code-config-lsp is a consumer of the lsp-max framework. It implements
+the `RulePackServer` trait from lsp-max, which means:
+
+- It gains `ConformanceVector` with admitted/refused/unknown law-axis sets
+- Its diagnostics feed into the lsp-max compositor's OCEL event stream
+- The `max/snapshot` and `max/gate` surfaces from lsp-max are available to
+  agents querying the server's state
+- The ANDON gate mechanism — which blocks tool calls when active diagnostics
+  are present — can be wired to fire on `CCC-*` diagnostic families
+
+The lsp-max compositor accumulates OCEL 2.0 events from all wired servers,
+including claude-code-config-lsp. This means the config surface's event flow
+— opens, diagnostic publications, hover requests, completion requests, repairs
+— appears in the same process log as events from other LSP servers in the
+workspace. A pm4py conformance check can verify that the normative Declare
+constraints held across all servers simultaneously.
+
+---
+
+## Why tower-lsp is a law violation
+
+The lsp-max framework is a fork and extension of tower-lsp. Using tower-lsp
+directly instead of lsp-max bypasses three critical mechanisms:
+
+**1. ConformanceVector.** lsp-max's `RulePackServer` trait carries a
+`ConformanceVector` that tracks admitted, refused, and unknown law-axis sets
+for every capability the server advertises. tower-lsp has no such mechanism.
+An LSP server built on tower-lsp can claim any capability without evidence,
+and there is no runtime enforcement that the claim is honest.
+
+**2. Receipt chain.** lsp-max gates capability status changes on receipt
+artifacts: a capability cannot move from `CANDIDATE` to `ADMITTED` without
+a transcript, a negative control, and a SHA256-bounded receipt. tower-lsp has
+no receipt mechanism. An agent that builds on tower-lsp can assert `ADMITTED`
+for capabilities it has never demonstrated.
+
+**3. Gate enforcement.** The lsp-max ANDON gate blocks tool calls and file
+mutations when active diagnostics are present. This gate is wired at the
+`PreToolUse` hook level and depends on `lsp-max-cli gate check`. A server
+built on tower-lsp is invisible to the gate: its diagnostics do not feed into
+the gate's decision, and the agent can proceed past diagnostic violations that
+should block it.
+
+The `anti-llm-cheat-lsp` server detects plain `tower-lsp` and `tower_lsp`
+references in Rust source and emits `ANTI-LLM-CHEAT-LSP-FORBIDDEN-REF`
+diagnostics. This is enforced by `just dx-verify` across the workspace.
+Using tower-lsp is not a style choice; it is a law violation that routes
+around the evidence, admission, and gate machinery that makes lsp-max a
+trustworthy runtime for agent-governed law surfaces.
