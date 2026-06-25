@@ -1,0 +1,27 @@
+{
+  "$schema": "https://code.claude.com/schemas/plugin.json",
+  "name": "claude-code-config-lsp",
+  "displayName": "Claude Code Config LSP",
+  "description": "Real-time diagnostics, hover, and completion for Claude Code config files: settings.json, CLAUDE.md, marketplace.json, plugin.json, mcp.json, agents, skills, and hooks.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Sean Chatman",
+    "email": "xpointsh@gmail.com"
+  },
+  "homepage": "https://github.com/seanchatmangpt/claude-code-config-lsp",
+  "repository": "https://github.com/seanchatmangpt/claude-code-config-lsp",
+  "license": "MIT",
+  "keywords": ["claude-code", "lsp", "config", "settings", "hooks", "agents", "skills", "marketplace"],
+  "lspServers": {
+    "claude-code-config": {
+      "command": "claude-code-config-lsp",
+      "args": [],
+      "transport": "stdio",
+      "extensionToLanguage": {
+        ".json": "claude-code-config",
+        ".md": "claude-code-config"
+      },
+      "diagnostics": true
+    }
+  }
+}

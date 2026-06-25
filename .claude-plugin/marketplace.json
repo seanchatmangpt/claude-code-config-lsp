@@ -1,0 +1,30 @@
+{
+  "$schema": "https://code.claude.com/schemas/marketplace.json",
+  "name": "claude-code-config-lsp",
+  "description": "LSP 3.18 server for Claude Code config files — real-time diagnostics and hover for settings.json, CLAUDE.md, marketplace.json, plugin.json, mcp.json, agents, skills, and hooks.",
+  "owner": {
+    "name": "Sean Chatman",
+    "email": "xpointsh@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "claude-code-config-lsp",
+      "displayName": "Claude Code Config LSP",
+      "source": {
+        "source": "github",
+        "repo": "seanchatmangpt/claude-code-config-lsp"
+      },
+      "description": "Real-time diagnostics, hover, and completion for all Claude Code config surfaces.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Sean Chatman",
+        "email": "xpointsh@gmail.com"
+      },
+      "homepage": "https://github.com/seanchatmangpt/claude-code-config-lsp",
+      "repository": "https://github.com/seanchatmangpt/claude-code-config-lsp",
+      "license": "MIT",
+      "category": "lsp",
+      "tags": ["claude-code", "lsp", "config", "settings", "diagnostics", "hover"]
+    }
+  ]
+}
