@@ -23,7 +23,7 @@ name        = "main"
 query       = { inline = "SELECT ?name ?version WHERE { BIND(\"claude-code-config-lsp\" AS ?name) BIND(\"26.6.24\" AS ?version) }" }
 template    = { file = "/Users/sac/lsp-max/templates/lsp-max/cargo.toml.tera" }
 output_file = "Cargo.toml"
-mode        = "Create"
+mode        = "Overwrite"
 
 # ─── Rule 2: lib ─────────────────────────────────────────────────────────────
 
@@ -32,7 +32,7 @@ name        = "lib"
 query       = { inline = "SELECT ?server_name WHERE { BIND(\"ClaudeCodeConfig\" AS ?server_name) }" }
 template    = { file = "/Users/sac/lsp-max/templates/lsp-max/lib.rs.tera" }
 output_file = "src/lib.rs"
-mode        = "Create"
+mode        = "Overwrite"
 
 # ─── Rule 3: main-rs ─────────────────────────────────────────────────────────
 
@@ -41,7 +41,7 @@ name        = "main-rs"
 query       = { inline = "SELECT ?server_name ?snake_name WHERE { BIND(\"ClaudeCodeConfig\" AS ?server_name) BIND(\"claude_code_config\" AS ?snake_name) }" }
 template    = { file = "/Users/sac/lsp-max/templates/lsp-max/main.rs.tera" }
 output_file = "src/main.rs"
-mode        = "Create"
+mode        = "Overwrite"
 
 # ─── Rule 4: file-types ──────────────────────────────────────────────────────
 
@@ -101,7 +101,7 @@ mode        = "Overwrite"
 
 [[generation.rules]]
 name        = "declare-model"
-query       = { inline = "SELECT ?activity WHERE { BIND(\"ScanComplete\" AS ?activity) }" }
+query       = { file = "sparql/declare_constraints.rq" }
 template    = { file = "/Users/sac/lsp-max/templates/lsp-max/declare_model.rs.tera" }
 output_file = "src/declare_model.rs"
 mode        = "Overwrite"
@@ -113,7 +113,7 @@ name        = "virtual-docs"
 query       = { inline = "SELECT ?server_name ?virtual_doc_scheme ?virtual_doc_uri ?doc_title ?doc_type WHERE { BIND(\"ClaudeCodeConfig\" AS ?server_name) BIND(\"claude-code-config\" AS ?virtual_doc_scheme) BIND(\"claude-code-config://process-model\" AS ?virtual_doc_uri) BIND(\"Process Model\" AS ?doc_title) BIND(\"markdown\" AS ?doc_type) }" }
 template    = { file = "/Users/sac/lsp-max/templates/lsp-max/virtual_doc.rs.tera" }
 output_file = "src/virtual_docs.rs"
-mode        = "Create"
+mode        = "Overwrite"
 
 # ─── Rule 11: analyzer-json ──────────────────────────────────────────────────
 

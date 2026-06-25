@@ -1,0 +1,10 @@
+/Users/sac/claude-code-config-lsp/target/debug/deps/oxrdfxml-992303a5d9cfaf33.d: /Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/oxrdfxml-0.2.3/src/lib.rs /Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/oxrdfxml-0.2.3/src/error.rs /Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/oxrdfxml-0.2.3/src/parser.rs /Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/oxrdfxml-0.2.3/src/serializer.rs /Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/oxrdfxml-0.2.3/src/utils.rs /Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/oxrdfxml-0.2.3/src/../README.md
+
+/Users/sac/claude-code-config-lsp/target/debug/deps/liboxrdfxml-992303a5d9cfaf33.rmeta: /Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/oxrdfxml-0.2.3/src/lib.rs /Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/oxrdfxml-0.2.3/src/error.rs /Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/oxrdfxml-0.2.3/src/parser.rs /Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/oxrdfxml-0.2.3/src/serializer.rs /Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/oxrdfxml-0.2.3/src/utils.rs /Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/oxrdfxml-0.2.3/src/../README.md
+
+/Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/oxrdfxml-0.2.3/src/lib.rs:
+/Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/oxrdfxml-0.2.3/src/error.rs:
+/Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/oxrdfxml-0.2.3/src/parser.rs:
+/Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/oxrdfxml-0.2.3/src/serializer.rs:
+/Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/oxrdfxml-0.2.3/src/utils.rs:
+/Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/oxrdfxml-0.2.3/src/../README.md:

@@ -1,0 +1,12 @@
+/Users/sac/claude-code-config-lsp/target/debug/deps/spareval-6307607736aa65a0.d: /Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/spareval-0.2.6/src/lib.rs /Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/spareval-0.2.6/src/dataset.rs /Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/spareval-0.2.6/src/error.rs /Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/spareval-0.2.6/src/eval.rs /Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/spareval-0.2.6/src/expression.rs /Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/spareval-0.2.6/src/model.rs /Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/spareval-0.2.6/src/service.rs /Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/spareval-0.2.6/src/update.rs
+
+/Users/sac/claude-code-config-lsp/target/debug/deps/libspareval-6307607736aa65a0.rmeta: /Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/spareval-0.2.6/src/lib.rs /Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/spareval-0.2.6/src/dataset.rs /Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/spareval-0.2.6/src/error.rs /Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/spareval-0.2.6/src/eval.rs /Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/spareval-0.2.6/src/expression.rs /Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/spareval-0.2.6/src/model.rs /Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/spareval-0.2.6/src/service.rs /Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/spareval-0.2.6/src/update.rs
+
+/Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/spareval-0.2.6/src/lib.rs:
+/Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/spareval-0.2.6/src/dataset.rs:
+/Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/spareval-0.2.6/src/error.rs:
+/Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/spareval-0.2.6/src/eval.rs:
+/Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/spareval-0.2.6/src/expression.rs:
+/Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/spareval-0.2.6/src/model.rs:
+/Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/spareval-0.2.6/src/service.rs:
+/Users/sac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/spareval-0.2.6/src/update.rs:

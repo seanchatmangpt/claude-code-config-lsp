@@ -1,11 +1,10 @@
 PREFIX ccc: <https://claude-code-config-lsp.rs/ontology/>
 
-SELECT ?constraint_type ?activity_a ?activity_b
+SELECT ?constraint_type ?antecedent ?consequent
 WHERE {
     ?constraint_id a ccc:DeclareConstraint ;
         ccc:constraintType ?constraint_type ;
-        ccc:constraintA ?activity_a .
-
-    OPTIONAL { ?constraint_id ccc:constraintB ?activity_b . }
+        ccc:constraintA ?antecedent ;
+        ccc:constraintB ?consequent .
 }
-ORDER BY ?constraint_type ?activity_a
+ORDER BY ?constraint_type ?antecedent
