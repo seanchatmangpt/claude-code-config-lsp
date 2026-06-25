@@ -39,12 +39,18 @@ pub async fn text_document_hover(params: HoverParams) -> Result<Option<Hover>> {
 
 pub fn schema_key_for_uri(uri: &str) -> &'static str {
     let u = uri.to_lowercase();
-    if u.contains("settings") {
+    if u.contains("settings") && u.ends_with(".json") {
         "Claude Code settings.json"
     } else if u.contains("skill.md") || u.contains("/skills/") {
         "Skill definition (.claude/skills/*/SKILL.md)"
     } else if u.contains("plugin.json") {
         "Plugin manifest (plugin.json)"
+    } else if u.contains("/agents/") && u.ends_with(".md") {
+        "Agent definition (.claude/agents/*.md)"
+    } else if u.ends_with("mcp.json") {
+        "MCP server config (mcp.json)"
+    } else if u.ends_with("claude.md") || u.ends_with("agents.md") {
+        "Project documentation (CLAUDE.md)"
     } else {
         ""
     }

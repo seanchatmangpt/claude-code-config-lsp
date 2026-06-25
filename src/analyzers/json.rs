@@ -153,6 +153,20 @@ mod tests {
     #[test] fn deprecated_key_detected() { let i = r#"{"enabledMcpjsonServers": []}"#; assert!(JsonAnalyzer::new().analyze(i).iter().any(|f| f.code == "CCC-JSON-001")); }
     #[test] fn camel_case_hooks_detected() { let i = r#"{"hookEvents": {}}"#; assert!(JsonAnalyzer::new().analyze(i).iter().any(|f| f.code == "CCC-JSON-002")); }
     #[test] fn valid_json_keys_clean() { let i = r#"{"hooks": {}, "mcpServers": {}}"#; assert!(JsonAnalyzer::new().analyze(i).is_empty()); }
+
+    #[test] fn invalid_model_fires_ccc_json_004() { let i = r#"{"model": "gpt-4"}"#; assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-004")); }
+    #[test] fn valid_model_sonnet_clean() { let i = r#"{"model": "sonnet"}"#; assert!(validate_settings_json_enums(i).is_empty()); }
+    #[test] fn valid_model_full_id_clean() { let i = r#"{"model": "claude-sonnet-4-6"}"#; assert!(validate_settings_json_enums(i).is_empty()); }
+    #[test] fn invalid_effort_fires_ccc_json_005() { let i = r#"{"effortLevel": "extreme"}"#; assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-005")); }
+    #[test] fn valid_effort_max_clean() { let i = r#"{"effortLevel": "max"}"#; assert!(validate_settings_json_enums(i).is_empty()); }
+    #[test] fn invalid_permission_mode_fires_ccc_json_006() { let i = r#"{"permissionMode": "unsafe"}"#; assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-006")); }
+    #[test] fn valid_permission_mode_auto_clean() { let i = r#"{"permissionMode": "auto"}"#; assert!(validate_settings_json_enums(i).is_empty()); }
+    #[test] fn invalid_hook_event_fires_ccc_hook_001() { let i = r#"{"hooks": {"on_tool_use": []}}"#; assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-HOOK-001")); }
+    #[test] fn valid_hook_event_pre_tool_use_clean() { let i = r#"{"hooks": {"PreToolUse": []}}"#; assert!(!validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-HOOK-001")); }
+    #[test] fn session_start_hook_is_valid() { let i = r#"{"hooks": {"SessionStart": []}}"#; assert!(!validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-HOOK-001")); }
+    #[test] fn plugin_missing_schema_fires_ccc_json_007() { let i = r#"{"name": "my-plugin"}"#; assert!(validate_plugin_json(i).iter().any(|f| f.code == "CCC-JSON-007")); }
+    #[test] fn plugin_with_schema_clean() { let i = r#"{"$schema": "https://example.com/schema.json", "name": "x"}"#; assert!(validate_plugin_json(i).is_empty()); }
+    #[test] fn invalid_json_returns_empty() { assert!(validate_settings_json_enums("not json").is_empty()); }
 }
 
 // ── Hand-coded: settings.json validation ─────────────────────────────────────
@@ -179,4 +193,102 @@ pub fn settings_json_rules() -> Vec<Rule> {
             "\"permissions\"".to_string(),
         ], "Unknown key 'permissions' — did you mean permissionMode?"),
     ]
+}
+
+/// Valid hook event names in the hooks object.
+const VALID_HOOK_EVENTS: &[&str] = &[
+    "PreToolUse", "PostToolUse", "SessionStart", "Stop", "SubagentStop", "Notification", "FileChanged",
+];
+
+/// Valid model values for settings.json `model` field.
+const VALID_MODELS: &[&str] = &[
+    "opus", "sonnet", "haiku", "fable",
+    "claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5-20251001",
+];
+
+/// Valid effortLevel values.
+const VALID_EFFORT_LEVELS: &[&str] = &["low", "medium", "high", "xhigh", "max"];
+
+/// Valid permissionMode / defaultMode values.
+const VALID_PERMISSION_MODES: &[&str] = &["auto", "block", "interactive"];
+
+/// Structural validation of settings.json — checks enum fields and hook event names.
+/// Called alongside pattern rules in the backend's "json" branch.
+pub fn validate_settings_json_enums(content: &str) -> Vec<RawFinding> {
+    let mut findings = Vec::new();
+    let Ok(val) = serde_json::from_str::<serde_json::Value>(content) else {
+        return findings; // syntax errors are tree-sitter's domain
+    };
+    let Some(obj) = val.as_object() else { return findings };
+
+    // CCC-JSON-004: invalid model value
+    if let Some(model) = obj.get("model").and_then(|v| v.as_str()) {
+        if !VALID_MODELS.contains(&model) {
+            findings.push(RawFinding {
+                code: "CCC-JSON-004".into(),
+                message: format!("Invalid model '{model}' — valid: {}", VALID_MODELS.join(", ")),
+                span: (0, 0),
+            });
+        }
+    }
+
+    // CCC-JSON-005: invalid effortLevel value
+    if let Some(level) = obj.get("effortLevel").and_then(|v| v.as_str()) {
+        if !VALID_EFFORT_LEVELS.contains(&level) {
+            findings.push(RawFinding {
+                code: "CCC-JSON-005".into(),
+                message: format!("Invalid effortLevel '{level}' — valid: {}", VALID_EFFORT_LEVELS.join(", ")),
+                span: (0, 0),
+            });
+        }
+    }
+
+    // CCC-JSON-006: invalid permissionMode / defaultMode in permissions object
+    let check_mode = |mode: &str, findings: &mut Vec<RawFinding>| {
+        if !VALID_PERMISSION_MODES.contains(&mode) {
+            findings.push(RawFinding {
+                code: "CCC-JSON-006".into(),
+                message: format!("Invalid permissionMode '{mode}' — valid: auto, block, interactive"),
+                span: (0, 0),
+            });
+        }
+    };
+    if let Some(mode) = obj.get("permissionMode").and_then(|v| v.as_str()) {
+        check_mode(mode, &mut findings);
+    }
+    if let Some(perms) = obj.get("permissions").and_then(|v| v.as_object()) {
+        if let Some(mode) = perms.get("defaultMode").and_then(|v| v.as_str()) {
+            check_mode(mode, &mut findings);
+        }
+    }
+
+    // CCC-HOOK-001 (structural): hooks object keys must be valid event names
+    if let Some(hooks) = obj.get("hooks").and_then(|v| v.as_object()) {
+        for key in hooks.keys() {
+            if !VALID_HOOK_EVENTS.contains(&key.as_str()) {
+                findings.push(RawFinding {
+                    code: "CCC-HOOK-001".into(),
+                    message: format!("Invalid hook event '{key}' — valid: {}", VALID_HOOK_EVENTS.join(", ")),
+                    span: (0, 0),
+                });
+            }
+        }
+    }
+
+    findings
+}
+
+/// Structural validation of plugin.json — CCC-JSON-007: missing $schema field.
+pub fn validate_plugin_json(content: &str) -> Vec<RawFinding> {
+    let mut findings = Vec::new();
+    let Ok(val) = serde_json::from_str::<serde_json::Value>(content) else { return findings };
+    let Some(obj) = val.as_object() else { return findings };
+    if !obj.contains_key("$schema") {
+        findings.push(RawFinding {
+            code: "CCC-JSON-007".into(),
+            message: "plugin.json missing required '$schema' field".into(),
+            span: (0, 0),
+        });
+    }
+    findings
 }

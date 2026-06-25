@@ -5,82 +5,52 @@
 use lsp_max::max_protocol::ConformanceVector;
 
 pub fn conformance_vector() -> ConformanceVector {
-    
     ConformanceVector {
+        // Methods with real handler implementations
         admitted: vec![
-            
-            "callHierarchy/incomingCalls",
-            
-            "callHierarchy/outgoingCalls",
-            
-            "codeLens/resolve",
-            
-            "inlayHint/resolve",
-            
-            "max/admission",
-            
-            "max/snapshot",
-            
-            "textDocument/codeAction",
-            
-            "textDocument/codeLens",
-            
-            "textDocument/completion",
-            
-            "textDocument/definition",
-            
+            "textDocument/didOpen",
+            "textDocument/didChange",
+            "textDocument/didClose",
             "textDocument/diagnostic",
-            
-            "textDocument/documentHighlight",
-            
-            "textDocument/documentLink",
-            
-            "textDocument/documentSymbol",
-            
-            "textDocument/foldingRange",
-            
-            "textDocument/formatting",
-            
             "textDocument/hover",
-            
-            "textDocument/inlayHint",
-            
-            "textDocument/inlineValue",
-            
-            "textDocument/linkedEditingRange",
-            
-            "textDocument/moniker",
-            
-            "textDocument/prepareCallHierarchy",
-            
-            "textDocument/prepareRename",
-            
-            "textDocument/prepareTypeHierarchy",
-            
-            "textDocument/rangeFormatting",
-            
-            "textDocument/references",
-            
-            "textDocument/rename",
-            
-            "textDocument/selectionRange",
-            
-            "textDocument/signatureHelp",
-            
-            "typeHierarchy/subtypes",
-            
-            "typeHierarchy/supertypes",
-            
-            "workspace/diagnostic",
-            
-            "workspace/symbol",
-            
+            "textDocument/completion",
         ],
+        // Methods explicitly not implemented — clients must not expect responses
         refused: vec![
-            
+            "callHierarchy/incomingCalls",
+            "callHierarchy/outgoingCalls",
+            "codeLens/resolve",
+            "inlayHint/resolve",
+            "textDocument/codeAction",
+            "textDocument/codeLens",
+            "textDocument/definition",
+            "textDocument/documentHighlight",
+            "textDocument/documentLink",
+            "textDocument/documentSymbol",
+            "textDocument/foldingRange",
+            "textDocument/formatting",
+            "textDocument/inlayHint",
+            "textDocument/inlineValue",
+            "textDocument/linkedEditingRange",
+            "textDocument/moniker",
+            "textDocument/prepareCallHierarchy",
+            "textDocument/prepareRename",
+            "textDocument/prepareTypeHierarchy",
+            "textDocument/rangeFormatting",
+            "textDocument/references",
+            "textDocument/rename",
+            "textDocument/selectionRange",
+            "textDocument/signatureHelp",
+            "typeHierarchy/subtypes",
+            "typeHierarchy/supertypes",
+            "workspace/diagnostic",
+            "workspace/symbol",
         ],
+        // Presence/behavior not yet determined
         unknown: vec![
-            
+            "max/admission",
+            "max/snapshot",
+            "textDocument/semanticTokens/full",
         ],
         ..Default::default()
     }

@@ -32,113 +32,87 @@ pub struct SchemaRegistry {
 pub fn build_schema() -> SchemaRegistry {
     let mut types: HashMap<String, SchemaNode> = HashMap::new();
 
-    types.entry("Agent definition (.claude/agents/*.md)".to_string()).or_insert_with(|| SchemaNode {
-        name: "Agent definition (.claude/agents/*.md)".to_string(),
-        fields: Vec::new(),
-        law_status: "CANDIDATE".to_string(),
-    }).fields.push((
-        "description".to_string(),
-        FieldType {
-            name: "string".to_string(),
-            is_optional: false,
-            stability: "stable".to_string(),
-        },
-    ));
+    {
+        let agent = types.entry("Agent definition (.claude/agents/*.md)".to_string()).or_insert_with(|| SchemaNode {
+            name: "Agent definition (.claude/agents/*.md)".to_string(),
+            fields: Vec::new(),
+            law_status: "CANDIDATE".to_string(),
+        });
+        agent.fields.push(("name".to_string(), FieldType { name: "string".to_string(), is_optional: false, stability: "stable".to_string() }));
+        agent.fields.push(("description".to_string(), FieldType { name: "string".to_string(), is_optional: false, stability: "stable".to_string() }));
+        agent.fields.push(("model".to_string(), FieldType { name: "enum: opus | sonnet | haiku | inherit".to_string(), is_optional: true, stability: "stable".to_string() }));
+        agent.fields.push(("tools".to_string(), FieldType { name: "array[string]".to_string(), is_optional: true, stability: "stable".to_string() }));
+        agent.fields.push(("maxTurns".to_string(), FieldType { name: "integer".to_string(), is_optional: true, stability: "stable".to_string() }));
+        agent.fields.push(("mcpServers".to_string(), FieldType { name: "object".to_string(), is_optional: true, stability: "stable".to_string() }));
+    }
 
-    types.entry("Agent definition (.claude/agents/*.md)".to_string()).or_insert_with(|| SchemaNode {
-        name: "Agent definition (.claude/agents/*.md)".to_string(),
-        fields: Vec::new(),
-        law_status: "CANDIDATE".to_string(),
-    }).fields.push((
-        "name".to_string(),
-        FieldType {
-            name: "string".to_string(),
-            is_optional: false,
-            stability: "stable".to_string(),
-        },
-    ));
+    {
+        let settings = types.entry("Claude Code settings.json".to_string()).or_insert_with(|| SchemaNode {
+            name: "Claude Code settings.json".to_string(),
+            fields: Vec::new(),
+            law_status: "CANDIDATE".to_string(),
+        });
+        settings.fields.push(("model".to_string(), FieldType { name: "enum: opus | sonnet | haiku | fable | claude-opus-4-8 | claude-sonnet-4-6 | claude-haiku-4-5-20251001".to_string(), is_optional: true, stability: "stable".to_string() }));
+        settings.fields.push(("effortLevel".to_string(), FieldType { name: "enum: low | medium | high | xhigh | max".to_string(), is_optional: true, stability: "stable".to_string() }));
+        settings.fields.push(("permissions".to_string(), FieldType { name: "object".to_string(), is_optional: true, stability: "stable".to_string() }));
+        settings.fields.push(("hooks".to_string(), FieldType { name: "object[hookEvent → array]".to_string(), is_optional: true, stability: "stable".to_string() }));
+        settings.fields.push(("mcpServers".to_string(), FieldType { name: "object[id → {command, args}]".to_string(), is_optional: true, stability: "stable".to_string() }));
+        settings.fields.push(("env".to_string(), FieldType { name: "object[string → string]".to_string(), is_optional: true, stability: "stable".to_string() }));
+        settings.fields.push(("enabledPlugins".to_string(), FieldType { name: "object[id → boolean]".to_string(), is_optional: true, stability: "stable".to_string() }));
+        settings.fields.push(("statusLine".to_string(), FieldType { name: "object".to_string(), is_optional: true, stability: "stable".to_string() }));
+        settings.fields.push(("tui".to_string(), FieldType { name: "enum: fullscreen".to_string(), is_optional: true, stability: "experimental".to_string() }));
+    }
 
-    types.entry("Claude Code settings.json".to_string()).or_insert_with(|| SchemaNode {
-        name: "Claude Code settings.json".to_string(),
-        fields: Vec::new(),
-        law_status: "CANDIDATE".to_string(),
-    }).fields.push((
-        "effortLevel".to_string(),
-        FieldType {
-            name: "enum".to_string(),
-            is_optional: true,
-            stability: "stable".to_string(),
-        },
-    ));
+    {
+        let plugin = types.entry("Plugin manifest (plugin.json)".to_string()).or_insert_with(|| SchemaNode {
+            name: "Plugin manifest (plugin.json)".to_string(),
+            fields: Vec::new(),
+            law_status: "CANDIDATE".to_string(),
+        });
+        plugin.fields.push(("$schema".to_string(), FieldType { name: "string".to_string(), is_optional: false, stability: "stable".to_string() }));
+        plugin.fields.push(("name".to_string(), FieldType { name: "string".to_string(), is_optional: false, stability: "stable".to_string() }));
+        plugin.fields.push(("description".to_string(), FieldType { name: "string".to_string(), is_optional: true, stability: "stable".to_string() }));
+        plugin.fields.push(("version".to_string(), FieldType { name: "string".to_string(), is_optional: true, stability: "stable".to_string() }));
+    }
 
-    types.entry("Claude Code settings.json".to_string()).or_insert_with(|| SchemaNode {
-        name: "Claude Code settings.json".to_string(),
-        fields: Vec::new(),
-        law_status: "CANDIDATE".to_string(),
-    }).fields.push((
-        "model".to_string(),
-        FieldType {
-            name: "enum".to_string(),
-            is_optional: true,
-            stability: "stable".to_string(),
-        },
-    ));
+    {
+        let mcp = types.entry("MCP server config (mcp.json)".to_string()).or_insert_with(|| SchemaNode {
+            name: "MCP server config (mcp.json)".to_string(),
+            fields: Vec::new(),
+            law_status: "CANDIDATE".to_string(),
+        });
+        mcp.fields.push(("command".to_string(), FieldType { name: "string".to_string(), is_optional: false, stability: "stable".to_string() }));
+        mcp.fields.push(("args".to_string(), FieldType { name: "array[string]".to_string(), is_optional: true, stability: "stable".to_string() }));
+        mcp.fields.push(("env".to_string(), FieldType { name: "object[string → string]".to_string(), is_optional: true, stability: "stable".to_string() }));
+        mcp.fields.push(("type".to_string(), FieldType { name: "enum: stdio".to_string(), is_optional: true, stability: "stable".to_string() }));
+    }
 
-    types.entry("Claude Code settings.json".to_string()).or_insert_with(|| SchemaNode {
-        name: "Claude Code settings.json".to_string(),
-        fields: Vec::new(),
-        law_status: "CANDIDATE".to_string(),
-    }).fields.push((
-        "permissions".to_string(),
-        FieldType {
-            name: "object".to_string(),
-            is_optional: true,
-            stability: "stable".to_string(),
-        },
-    ));
+    {
+        let docs = types.entry("Project documentation (CLAUDE.md)".to_string()).or_insert_with(|| SchemaNode {
+            name: "Project documentation (CLAUDE.md)".to_string(),
+            fields: Vec::new(),
+            law_status: "CANDIDATE".to_string(),
+        });
+        docs.fields.push(("# Title".to_string(), FieldType { name: "markdown H1".to_string(), is_optional: false, stability: "stable".to_string() }));
+        docs.fields.push(("## Section".to_string(), FieldType { name: "markdown H2".to_string(), is_optional: true, stability: "stable".to_string() }));
+    }
 
-    types.entry("Plugin manifest (plugin.json)".to_string()).or_insert_with(|| SchemaNode {
-        name: "Plugin manifest (plugin.json)".to_string(),
-        fields: Vec::new(),
-        law_status: "CANDIDATE".to_string(),
-    }).fields.push((
-        "$schema".to_string(),
-        FieldType {
-            name: "string".to_string(),
-            is_optional: false,
-            stability: "stable".to_string(),
-        },
-    ));
-
-    types.entry("Skill definition (.claude/skills/*/SKILL.md)".to_string()).or_insert_with(|| SchemaNode {
-        name: "Skill definition (.claude/skills/*/SKILL.md)".to_string(),
-        fields: Vec::new(),
-        law_status: "CANDIDATE".to_string(),
-    }).fields.push((
-        "description".to_string(),
-        FieldType {
-            name: "string".to_string(),
-            is_optional: false,
-            stability: "stable".to_string(),
-        },
-    ));
-
-    types.entry("Skill definition (.claude/skills/*/SKILL.md)".to_string()).or_insert_with(|| SchemaNode {
-        name: "Skill definition (.claude/skills/*/SKILL.md)".to_string(),
-        fields: Vec::new(),
-        law_status: "CANDIDATE".to_string(),
-    }).fields.push((
-        "name".to_string(),
-        FieldType {
-            name: "string".to_string(),
-            is_optional: false,
-            stability: "stable".to_string(),
-        },
-    ));
+    {
+        let skill = types.entry("Skill definition (.claude/skills/*/SKILL.md)".to_string()).or_insert_with(|| SchemaNode {
+            name: "Skill definition (.claude/skills/*/SKILL.md)".to_string(),
+            fields: Vec::new(),
+            law_status: "CANDIDATE".to_string(),
+        });
+        skill.fields.push(("name".to_string(), FieldType { name: "string (lowercase, no reserved words)".to_string(), is_optional: false, stability: "stable".to_string() }));
+        skill.fields.push(("description".to_string(), FieldType { name: "string (max 1024 chars)".to_string(), is_optional: false, stability: "stable".to_string() }));
+        skill.fields.push(("tools".to_string(), FieldType { name: "array[string]".to_string(), is_optional: true, stability: "stable".to_string() }));
+        skill.fields.push(("user-invocable".to_string(), FieldType { name: "boolean".to_string(), is_optional: true, stability: "stable".to_string() }));
+        skill.fields.push(("mcpServers".to_string(), FieldType { name: "object".to_string(), is_optional: true, stability: "stable".to_string() }));
+    }
 
     SchemaRegistry {
         name: "ClaudeCodeConfig",
-        version: "26.6.24",
+        version: "26.6.25",
         types,
     }
 }
@@ -151,6 +125,26 @@ mod tests {
     fn schema_builds() {
         let schema = build_schema();
         assert_eq!(schema.name, "ClaudeCodeConfig");
-        assert_eq!(schema.types.len(), 4);
+        assert_eq!(schema.types.len(), 6);
+    }
+
+    #[test]
+    fn agent_definition_has_model_field() {
+        let schema = build_schema();
+        let agent = schema.types.get("Agent definition (.claude/agents/*.md)").unwrap();
+        assert!(agent.fields.iter().any(|(name, _)| name == "model"));
+    }
+
+    #[test]
+    fn settings_json_has_hooks_field() {
+        let schema = build_schema();
+        let settings = schema.types.get("Claude Code settings.json").unwrap();
+        assert!(settings.fields.iter().any(|(name, _)| name == "hooks"));
+    }
+
+    #[test]
+    fn mcp_server_config_exists() {
+        let schema = build_schema();
+        assert!(schema.types.contains_key("MCP server config (mcp.json)"));
     }
 }

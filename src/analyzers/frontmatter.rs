@@ -136,12 +136,21 @@ pub fn agent_frontmatter_rules() -> Vec<Rule> {
     ]
 }
 
+/// Known valid tool names for agent/skill definitions.
+const VALID_TOOLS: &[&str] = &[
+    "Read", "Write", "Edit", "Bash", "Grep", "Glob", "Agent",
+    "TaskCreate", "NotebookEdit", "WebFetch", "WebSearch", "LSP",
+    "MultiEdit", "TodoRead", "TodoWrite",
+];
+
 /// Validate an agent definition `.md` file's frontmatter for structural invariants.
 pub fn validate_agent_frontmatter(content: &str) -> Vec<RawFinding> {
     let mut findings = Vec::new();
     let Some(fm) = extract_frontmatter(content) else { return findings };
 
     let mut has_description = false;
+    let mut has_name = false;
+    let mut in_tools_block = false;
     let mut base_offset = content.find("---").map(|p| p + 3).unwrap_or(0);
 
     for raw_line in fm.lines() {
@@ -150,11 +159,40 @@ pub fn validate_agent_frontmatter(content: &str) -> Vec<RawFinding> {
         base_offset += raw_line.len() + 1;
 
         if line.starts_with("description:") {
+            in_tools_block = false;
             let val = line.trim_start_matches("description:").trim().trim_matches('"');
             has_description = !val.is_empty();
             if val.len() > 1024 {
                 findings.push(RawFinding { code: "CCC-AGENT-005".into(), message: format!("Agent description exceeds 1024 chars ({})", val.len()), span: (line_start, line_start + raw_line.len()) });
             }
+        } else if line.starts_with("name:") {
+            in_tools_block = false;
+            let val = line.trim_start_matches("name:").trim().trim_matches('"');
+            has_name = !val.is_empty();
+            if val.is_empty() {
+                findings.push(RawFinding { code: "CCC-AGENT-001".into(), message: "Agent name is missing or empty".into(), span: (line_start, line_start + raw_line.len()) });
+            }
+        } else if line.starts_with("tools:") {
+            in_tools_block = true;
+            // inline list: tools: [Read, Write]
+            let after = line.trim_start_matches("tools:").trim();
+            if after.starts_with('[') {
+                in_tools_block = false;
+                let inner = after.trim_start_matches('[').trim_end_matches(']');
+                for tool in inner.split(',') {
+                    let tool = tool.trim().trim_matches('"').trim_matches('\'');
+                    if !tool.is_empty() && !VALID_TOOLS.contains(&tool) && !tool.starts_with("mcp__") {
+                        findings.push(RawFinding { code: "CCC-AGENT-006".into(), message: format!("Unknown tool '{tool}' — expected one of Read/Write/Edit/Bash/Grep/Glob/Agent/…"), span: (line_start, line_start + raw_line.len()) });
+                    }
+                }
+            }
+        } else if in_tools_block && line.starts_with("- ") {
+            let tool = line.trim_start_matches('-').trim().trim_matches('"');
+            if !tool.is_empty() && !VALID_TOOLS.contains(&tool) && !tool.starts_with("mcp__") {
+                findings.push(RawFinding { code: "CCC-AGENT-006".into(), message: format!("Unknown tool '{tool}' — expected one of Read/Write/Edit/Bash/Grep/Glob/Agent/…"), span: (line_start, line_start + raw_line.len()) });
+            }
+        } else if !line.starts_with('-') && !line.starts_with(' ') {
+            in_tools_block = false;
         }
 
         if let Some(val) = line.strip_prefix("maxTurns:") {
@@ -179,6 +217,9 @@ pub fn validate_agent_frontmatter(content: &str) -> Vec<RawFinding> {
 
     if !has_description {
         findings.push(RawFinding { code: "CCC-AGENT-005".into(), message: "Agent description is missing or empty".into(), span: (0, content.find("---").unwrap_or(0)) });
+    }
+    if !has_name {
+        findings.push(RawFinding { code: "CCC-AGENT-001".into(), message: "Agent name field is required".into(), span: (0, content.find("---").unwrap_or(0)) });
     }
 
     findings.sort_by(|a, b| a.span.0.cmp(&b.span.0).then(a.code.cmp(&b.code)));
@@ -227,4 +268,8 @@ mod tests {
     #[test] fn ccc_agent_002_unknown_model() { let i = "---\nname: x\ndescription: y\nmodel: gpt-4\n---\n"; assert!(validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-002")); }
     #[test] fn ccc_agent_005_missing_description() { let i = "---\nname: x\n---\n"; assert!(validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-005")); }
     #[test] fn haiku_model_is_valid() { let i = "---\nname: x\ndescription: y\nmodel: haiku\nmaxTurns: 5\n---\n"; assert!(!validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-002")); }
+    #[test] fn ccc_agent_001_missing_name() { let i = "---\ndescription: Does useful work.\n---\n"; assert!(validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-001")); }
+    #[test] fn ccc_agent_006_unknown_tool() { let i = "---\nname: x\ndescription: y\ntools:\n  - Read\n  - SuperTool\n---\n"; assert!(validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-006")); }
+    #[test] fn valid_tools_list_clean() { let i = "---\nname: x\ndescription: y\ntools:\n  - Read\n  - Write\n  - Bash\n---\n"; assert!(!validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-006")); }
+    #[test] fn mcp_prefixed_tool_is_valid() { let i = "---\nname: x\ndescription: y\ntools:\n  - mcp__my_server__my_tool\n---\n"; assert!(!validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-006")); }
 }

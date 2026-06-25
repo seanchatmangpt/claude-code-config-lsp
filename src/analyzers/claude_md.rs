@@ -124,6 +124,23 @@ impl ReplayableAnalyzer for ClaudeMdAnalyzer {
 
 
 // ── Hand-coded section — rules derived from Claude Code Skill spec ────────────
+
+/// Validate CLAUDE.md / AGENTS.md — CCC-MD-006: must have H1 title as first non-empty line.
+pub fn validate_claude_md(content: &str) -> Vec<RawFinding> {
+    let mut findings = Vec::new();
+    let first_non_empty = content.lines().find(|l| !l.trim().is_empty());
+    match first_non_empty {
+        None => {
+            findings.push(RawFinding { code: "CCC-MD-006".into(), message: "CLAUDE.md is empty or has no content".into(), span: (0, 0) });
+        }
+        Some(line) if !line.starts_with("# ") => {
+            findings.push(RawFinding { code: "CCC-MD-006".into(), message: "CLAUDE.md should start with an H1 title (# Title)".into(), span: (0, line.len()) });
+        }
+        _ => {}
+    }
+    findings
+}
+
 pub fn extract_frontmatter(content: &str) -> Option<&str> {
     let mut lines = content.splitn(3, "---");
     lines.next()?;
@@ -220,6 +237,10 @@ mod tests {
     #[test] fn ccc_skill_005_description_too_long() { let d = "x".repeat(1025); let i = format!("---\nname: my-tool\ndescription: {d}\n---\n"); assert!(validate_skill_frontmatter(&i).iter().any(|x| x.code == "CCC-SKILL-005")); }
     #[test] fn multiple_violations_all_reported() { let i = "---\nname: Claude-Tool\n---\n"; let f = validate_skill_frontmatter(i); assert!(f.iter().any(|x| x.code == "CCC-SKILL-002")); assert!(f.iter().any(|x| x.code == "CCC-SKILL-003")); assert!(f.iter().any(|x| x.code == "CCC-SKILL-004")); }
     #[test] fn no_frontmatter_returns_empty() { assert!(validate_skill_frontmatter("# No frontmatter").is_empty()); }
+    #[test] fn ccc_md_006_missing_h1() { assert!(validate_claude_md("Some text without h1").iter().any(|f| f.code == "CCC-MD-006")); }
+    #[test] fn ccc_md_006_empty_file() { assert!(validate_claude_md("   \n\n").iter().any(|f| f.code == "CCC-MD-006")); }
+    #[test] fn ccc_md_006_h2_not_h1() { assert!(validate_claude_md("## Wrong level").iter().any(|f| f.code == "CCC-MD-006")); }
+    #[test] fn ccc_md_006_valid_h1() { assert!(validate_claude_md("# My Project\n\nContent.").is_empty()); }
     #[test] fn exactly_64_char_name_is_valid() { let n = "a".repeat(64); let i = format!("---\nname: {n}\ndescription: ok\n---\n"); assert!(!validate_skill_frontmatter(&i).iter().any(|x| x.code == "CCC-SKILL-001")); }
     #[test] fn exactly_1024_char_description_is_valid() { let d = "x".repeat(1024); let i = format!("---\nname: my-tool\ndescription: {d}\n---\n"); assert!(!validate_skill_frontmatter(&i).iter().any(|x| x.code == "CCC-SKILL-005")); }
 }

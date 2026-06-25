@@ -12,7 +12,7 @@ use lsp_types_max::*;
 
 #[allow(unused_imports)]
 use crate::analyzers::claude_md::{
-    validate_skill_frontmatter, ClaudeMdAnalyzer, RawFinding,
+    validate_claude_md, validate_skill_frontmatter, ClaudeMdAnalyzer, RawFinding,
     ReplayableAnalyzer as ClaudeMdReplayable,
 };
 use crate::analyzers::frontmatter::{
@@ -20,25 +20,45 @@ use crate::analyzers::frontmatter::{
     ReplayableAnalyzer as FrontmatterReplayable,
 };
 use crate::analyzers::hook::{HookAnalyzer, ReplayableAnalyzer as HookReplayable};
-use crate::analyzers::json::{JsonAnalyzer, ReplayableAnalyzer as JsonReplayable};
+use crate::analyzers::json::{
+    validate_plugin_json, validate_settings_json_enums, JsonAnalyzer,
+    ReplayableAnalyzer as JsonReplayable,
+};
 use crate::analyzers::toml::{TomlAnalyzer, ReplayableAnalyzer as TomlReplayable};
-use crate::schema::build_schema;
+use crate::ocel_accumulator::{AccumulatedEvent, OcelAccumulator, OcelRelationship};
 
 pub struct ClaudeCodeConfigBackend {
     client: Client,
     index: WorkspaceIndex,
     adapter: AutoLspAdapter,
     packs: ValidatedRulePackSet,
+    accumulator: OcelAccumulator,
+    /// Home dir prefix for global-vs-project scope detection.
+    home_dir: Option<String>,
 }
 
 impl ClaudeCodeConfigBackend {
     pub fn new(client: Client) -> Self {
+        let home_dir = std::env::var("HOME").ok();
         Self {
             client,
             index: WorkspaceIndex::new(),
             adapter: AutoLspAdapter::new_default(),
             packs: ValidatedRulePackSet::empty(),
+            accumulator: OcelAccumulator::new(),
+            home_dir,
         }
+    }
+
+    /// Returns true if the URI resolves to the user's global ~/.claude/ directory.
+    fn is_global_scope(&self, uri: &str) -> bool {
+        if let Some(home) = &self.home_dir {
+            let home_claude = format!("{home}/.claude/");
+            // Strip file:// scheme for comparison
+            let path = uri.strip_prefix("file://").unwrap_or(uri);
+            return path.starts_with(&home_claude);
+        }
+        false
     }
 
     /// Classify a URI to determine which analyzer(s) to run.
@@ -64,22 +84,43 @@ impl ClaudeCodeConfigBackend {
         }
     }
 
-    fn make_finding(code: &str, message: &str, category: &str) -> Finding {
-        let diag = Diagnostic {
-            range: Range::default(),
-            severity: Some(DiagnosticSeverity::WARNING),
-            code: Some(NumberOrString::String(code.to_string())),
-            source: Some("claude-code-config-lsp".into()),
-            message: message.to_string(),
-            ..Default::default()
-        };
-        let max = MaxDiagnostic {
-            lsp: diag.clone(),
-            law_axis: LawAxis::Custom(category.to_string()),
-            ..MaxDiagnostic::default()
-        };
-        (max, diag)
+    fn make_finding_scoped(code: &str, message: &str, category: &str, global: bool) -> Finding {
+        let source = if global { "claude-code-config-lsp[global]" } else { "claude-code-config-lsp" };
+        make_finding_with_source(code, message, category, source)
     }
+
+    fn emit_ocel_event(&self, activity: &str, uri: &str) {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let ts = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let event = AccumulatedEvent {
+            id: self.accumulator.next_event_id(),
+            activity: activity.to_string(),
+            timestamp: format!("{ts}"),
+            relationships: vec![OcelRelationship { object_id: uri.to_string(), qualifier: None }],
+            attributes: serde_json::Map::new(),
+        };
+        self.accumulator.accumulate(event);
+    }
+}
+
+fn make_finding_with_source(code: &str, message: &str, category: &str, source: &'static str) -> Finding {
+    let diag = Diagnostic {
+        range: Range::default(),
+        severity: Some(DiagnosticSeverity::WARNING),
+        code: Some(NumberOrString::String(code.to_string())),
+        source: Some(source.into()),
+        message: message.to_string(),
+        ..Default::default()
+    };
+    let max = MaxDiagnostic {
+        lsp: diag.clone(),
+        law_axis: LawAxis::Custom(category.to_string()),
+        ..MaxDiagnostic::default()
+    };
+    (max, diag)
 }
 
 impl RulePackServer for ClaudeCodeConfigBackend {
@@ -91,49 +132,66 @@ impl RulePackServer for ClaudeCodeConfigBackend {
     fn workspace_index(&self) -> Option<&WorkspaceIndex> { Some(&self.index) }
 
     fn scan_uri_classified(&self, uri: &Url, content: &str) -> ClassifiedFindings {
-        let kind = Self::classify_uri(uri.as_str());
+        let uri_str = uri.as_str();
+        let kind = Self::classify_uri(uri_str);
+        let global = self.is_global_scope(uri_str);
         let mut sync: Vec<Finding> = Vec::new();
 
         match kind {
             "skill" => {
                 for raw in validate_skill_frontmatter(content) {
-                    sync.push(Self::make_finding(&raw.code, &raw.message, "skill"));
+                    sync.push(Self::make_finding_scoped(&raw.code, &raw.message, "skill", global));
                 }
                 for raw in ClaudeMdReplayable::analyze(&ClaudeMdAnalyzer::new(), content) {
-                    sync.push(Self::make_finding(&raw.code, &raw.message, "skill"));
+                    sync.push(Self::make_finding_scoped(&raw.code, &raw.message, "skill", global));
                 }
             }
             "claude_md" => {
+                for raw in validate_claude_md(content) {
+                    sync.push(Self::make_finding_scoped(&raw.code, &raw.message, "claude_md", global));
+                }
                 for raw in ClaudeMdReplayable::analyze(&ClaudeMdAnalyzer::new(), content) {
-                    sync.push(Self::make_finding(&raw.code, &raw.message, "claude_md"));
+                    sync.push(Self::make_finding_scoped(&raw.code, &raw.message, "claude_md", global));
                 }
             }
             "agent" => {
                 for raw in validate_agent_frontmatter(content) {
-                    sync.push(Self::make_finding(&raw.code, &raw.message, "agent"));
+                    sync.push(Self::make_finding_scoped(&raw.code, &raw.message, "agent", global));
                 }
                 for raw in FrontmatterReplayable::analyze(&FrontmatterAnalyzer::new(), content) {
-                    sync.push(Self::make_finding(&raw.code, &raw.message, "agent"));
+                    sync.push(Self::make_finding_scoped(&raw.code, &raw.message, "agent", global));
                 }
             }
             "json" => {
                 for raw in JsonReplayable::analyze(&JsonAnalyzer::new(), content) {
-                    sync.push(Self::make_finding(&raw.code, &raw.message, "json"));
+                    sync.push(Self::make_finding_scoped(&raw.code, &raw.message, "json", global));
+                }
+                if uri_str.to_lowercase().ends_with("settings.json") {
+                    for raw in validate_settings_json_enums(content) {
+                        sync.push(Self::make_finding_scoped(&raw.code, &raw.message, "json", global));
+                    }
+                }
+                if uri_str.to_lowercase().ends_with("plugin.json") {
+                    for raw in validate_plugin_json(content) {
+                        sync.push(Self::make_finding_scoped(&raw.code, &raw.message, "json", global));
+                    }
                 }
             }
             "toml" => {
                 for raw in TomlReplayable::analyze(&TomlAnalyzer::new(), content) {
-                    sync.push(Self::make_finding(&raw.code, &raw.message, "toml"));
+                    sync.push(Self::make_finding_scoped(&raw.code, &raw.message, "toml", global));
                 }
             }
             "hook" => {
                 for raw in HookReplayable::analyze(&HookAnalyzer::new(), content) {
-                    sync.push(Self::make_finding(&raw.code, &raw.message, "hook"));
+                    sync.push(Self::make_finding_scoped(&raw.code, &raw.message, "hook", global));
                 }
             }
             _ => {}
         }
 
+        let finding_count = sync.len();
+        self.emit_ocel_event("DiagnosticsPublished", &format!("uri={uri_str},count={finding_count}"));
         (sync, vec![])
     }
 }
@@ -158,6 +216,7 @@ impl LanguageServer for ClaudeCodeConfigBackend {
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
+        self.emit_ocel_event("DocumentOpened", params.text_document.uri.as_str());
         self.handle_did_open(params).await;
     }
 
@@ -170,10 +229,12 @@ impl LanguageServer for ClaudeCodeConfigBackend {
     }
 
     async fn hover(&self, params: HoverParams) -> lsp_max::jsonrpc::Result<Option<Hover>> {
+        self.emit_ocel_event("HoverRequested", params.text_document_position_params.text_document.uri.as_str());
         crate::hover::text_document_hover(params).await
     }
 
     async fn completion(&self, params: CompletionParams) -> lsp_max::jsonrpc::Result<Option<CompletionResponse>> {
+        self.emit_ocel_event("CompletionRequested", params.text_document_position.text_document.uri.as_str());
         crate::completion::completion(params).await
     }
 }
