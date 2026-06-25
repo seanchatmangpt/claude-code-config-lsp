@@ -1,4 +1,5 @@
 PREFIX ccc: <https://claude-code-config-lsp.rs/ontology/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?surface_id ?surface_label ?file_pattern ?language_id ?analyzer_module ?parser_kind ?schema_source ?schema_url
 WHERE {
