@@ -1,9 +1,9 @@
 {
-  "operation_id": "d3c73b9b-0a50-4f2a-a97e-7903e75c06cd",
-  "timestamp": "2026-06-25T08:53:13.276973Z",
+  "operation_id": "5517bf5d-7b88-4f9f-9e24-4d0797ce453b",
+  "timestamp": "2026-06-25T08:52:31.950716Z",
   "input_hashes": [
-    "actuator:ggen-sync@26.6.25",
-    "ggen.toml:66d6246b2c252eb0c41925df070aeb48ad113b5af0e272bfb08267a3cc265dca",
+    "actuator:ggen-sync@26.6.11",
+    "ggen.toml:0721c2af3ed72b2a127e07733adfae5f936bf50dcf6f53b29992f0a3175bc12d",
     "schema/claude-code-config.ttl:5f35f06fd5cf24a64011640b22d6847bc609db69828b28fd92b373c0fe85bd1d",
     "../lsp-max/ontology/lsp318.ttl:a857435336fbd77c743a6f14b491882bd51cab1362e0950333a30e4965b3e439",
     "../lsp-max/ontology/max-protocol.ttl:a83bd7f8929271a324012dca0b7b2abeb17976a2287a052c29e7a223cb2533f2",
@@ -17,7 +17,6 @@
     "sparql/schema_fields.rq:11fd01becae31e29852c0a8d716d9a48fead4832cdaee273a224744ef8bb3648",
     "sparql/declare_constraints.rq:3d9c694178a281f2b664f63ccc2a540b12780cddc5e09e76fb0d0f6b51a5f60e",
     "sparql/virtual_docs.rq:ce88b167df308975b5c3f45a726deef5b9c253b2bba64545093b63842ac864fd",
-    "sparql/config_surfaces.rq:b733fe27629113c4554924ed11122c5504ec008e163d121f6dade9f3c40208d8",
     "sparql/config_surfaces.rq:b733fe27629113c4554924ed11122c5504ec008e163d121f6dade9f3c40208d8"
   ],
   "output_hashes": [
@@ -37,6 +36,6 @@
     "./src/ocel_accumulator.rs:a500147ca7f604f02e727646d4974e6163eeccdf82bde52c89b129a214e513d1",
     "./src/analyzers/mod.rs:9f511acb75eb88f0506552f871b9f55115228a7b2bf998cc4692db94644775d1"
   ],
-  "signature": "8ef4faec11cfed35eb78bbcc3af4a7d28f4614ca68775fc2a25aecf4353a7e9b84a6bdab77229f8e0bb5a1deeddc0d1d5b5a690f73ec78b1ac180bd092e1ad0d",
-  "previous_receipt_hash": "a6fa76aa371f08ec1556af93b57d68a3a605d4b29be89619d6391ecdbb893307"
+  "signature": "779c406fe17b90e21afce45bedb0f719533ceb71452a62502fdb0d599c33af24b5e2713adf1a0e35a949c411245f53a5ac5e3c7863a542d60172ea59c26da708",
+  "previous_receipt_hash": "4519ac35130e86cb2095d7900e591faa587ad821b4768cfccd903db5eca52687"
 }

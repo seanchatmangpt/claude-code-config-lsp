@@ -1,9 +1,9 @@
 {
-  "operation_id": "d3c73b9b-0a50-4f2a-a97e-7903e75c06cd",
-  "timestamp": "2026-06-25T08:53:13.276973Z",
+  "operation_id": "0b565f80-cfdc-4b18-9da9-c74292703111",
+  "timestamp": "2026-06-25T06:37:07.198302Z",
   "input_hashes": [
-    "actuator:ggen-sync@26.6.25",
-    "ggen.toml:66d6246b2c252eb0c41925df070aeb48ad113b5af0e272bfb08267a3cc265dca",
+    "actuator:ggen-sync@26.6.11",
+    "ggen.toml:8a683d3bf4e99478f76b6ee12b854e4d8ab36a588b4813e843c5260b43f94d30",
     "schema/claude-code-config.ttl:5f35f06fd5cf24a64011640b22d6847bc609db69828b28fd92b373c0fe85bd1d",
     "../lsp-max/ontology/lsp318.ttl:a857435336fbd77c743a6f14b491882bd51cab1362e0950333a30e4965b3e439",
     "../lsp-max/ontology/max-protocol.ttl:a83bd7f8929271a324012dca0b7b2abeb17976a2287a052c29e7a223cb2533f2",
@@ -34,9 +34,14 @@
     "./src/schema.rs:c1d5f0fe8608306248b5ee81a83e97266c4a1476c925000921059e40bfb99f0c",
     "./src/declare_model.rs:650592c358e92f03082b9c6b6a4137919ec44f10243f8b032b18fcea59fe1f63",
     "./src/virtual_docs.rs:ccf4f93108090c28536ec83ab3e19a61b359504f1d9881de8b1a42e974585ab2",
-    "./src/ocel_accumulator.rs:a500147ca7f604f02e727646d4974e6163eeccdf82bde52c89b129a214e513d1",
-    "./src/analyzers/mod.rs:9f511acb75eb88f0506552f871b9f55115228a7b2bf998cc4692db94644775d1"
+    "./src/ocel_accumulator.rs:9fba3c3b8e932a7f378059c9c184552eb654b50b501f1494e94edbe5fb915f5a",
+    "./src/analyzers/mod.rs:9f511acb75eb88f0506552f871b9f55115228a7b2bf998cc4692db94644775d1",
+    "./src/analyzers/claude_md.rs:8dd12dce84d68a4ae00aab2dd34a3cfee98aac3013bd79e2b255a200b9af5997",
+    "./src/analyzers/frontmatter.rs:a7482cf2e2a6557480f8c6d27d235843d832becee8dec5242b39240fe4d36971",
+    "./src/analyzers/hook.rs:10c5b13adae2388a0d91549723407eb84ec9f34164662b76178d3f302cbec546",
+    "./src/analyzers/json.rs:79211944eefd8d619bca29e3b1454587d8479ac0579e2521e4ce3842274eebfc",
+    "./src/analyzers/toml.rs:f4d6d8fbcd99744d91f6ef14490ffc417ae517fd641cfc1a5b7a6f4930c7b3e4"
   ],
-  "signature": "8ef4faec11cfed35eb78bbcc3af4a7d28f4614ca68775fc2a25aecf4353a7e9b84a6bdab77229f8e0bb5a1deeddc0d1d5b5a690f73ec78b1ac180bd092e1ad0d",
-  "previous_receipt_hash": "a6fa76aa371f08ec1556af93b57d68a3a605d4b29be89619d6391ecdbb893307"
+  "signature": "5ab6ac93f4c05d980f1727a2a4edc34002f2fd22fb6dc31d9e2f18268c7b9920fb0b0374b7de8409c37e12846bdc4f9ccb66cfe738c9052fec9514b72e305009",
+  "previous_receipt_hash": "8b2f81882d39d5ec56852a1f32a09d1415a655c6debb4f72e01b3a88f4da3ca0"
 }

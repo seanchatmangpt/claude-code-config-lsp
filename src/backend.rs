@@ -3,9 +3,26 @@
 //! Status: CANDIDATE — receipt chain OPEN
 
 use lsp_max::ast::AutoLspAdapter;
-use lsp_max::rule_pack_server::{RulePackServer, ValidatedRulePackSet, WorkspaceIndex};
+use lsp_max::max_protocol::{LawAxis, MaxDiagnostic};
+use lsp_max::rule_pack_server::{
+    ClassifiedFindings, Finding, RulePackServer, ValidatedRulePackSet, WorkspaceIndex,
+};
 use lsp_max::{Client, LanguageServer};
 use lsp_types_max::*;
+
+#[allow(unused_imports)]
+use crate::analyzers::claude_md::{
+    validate_skill_frontmatter, ClaudeMdAnalyzer, RawFinding,
+    ReplayableAnalyzer as ClaudeMdReplayable,
+};
+use crate::analyzers::frontmatter::{
+    validate_agent_frontmatter, FrontmatterAnalyzer,
+    ReplayableAnalyzer as FrontmatterReplayable,
+};
+use crate::analyzers::hook::{HookAnalyzer, ReplayableAnalyzer as HookReplayable};
+use crate::analyzers::json::{JsonAnalyzer, ReplayableAnalyzer as JsonReplayable};
+use crate::analyzers::toml::{TomlAnalyzer, ReplayableAnalyzer as TomlReplayable};
+use crate::schema::build_schema;
 
 pub struct ClaudeCodeConfigBackend {
     client: Client,
@@ -23,31 +40,101 @@ impl ClaudeCodeConfigBackend {
             packs: ValidatedRulePackSet::empty(),
         }
     }
+
+    /// Classify a URI to determine which analyzer(s) to run.
+    fn classify_uri(uri: &str) -> &'static str {
+        let u = uri.to_lowercase();
+        if u.ends_with("skill.md") || u.contains("/skills/") {
+            "skill"
+        } else if u.ends_with("claude.md") || u.ends_with("agents.md") {
+            "claude_md"
+        } else if u.contains("/agents/") && u.ends_with(".md") {
+            "agent"
+        } else if u.ends_with("settings.json") || u.ends_with("mcp.json")
+            || u.ends_with("plugin.json") || u.ends_with("marketplace.json")
+            || u.ends_with("keybindings.json")
+        {
+            "json"
+        } else if u.ends_with(".toml") {
+            "toml"
+        } else if u.ends_with(".sh") || u.contains("/hooks/") {
+            "hook"
+        } else {
+            "unknown"
+        }
+    }
+
+    fn make_finding(code: &str, message: &str, category: &str) -> Finding {
+        let diag = Diagnostic {
+            range: Range::default(),
+            severity: Some(DiagnosticSeverity::WARNING),
+            code: Some(NumberOrString::String(code.to_string())),
+            source: Some("claude-code-config-lsp".into()),
+            message: message.to_string(),
+            ..Default::default()
+        };
+        let max = MaxDiagnostic {
+            lsp: diag.clone(),
+            law_axis: LawAxis::Custom(category.to_string()),
+            ..MaxDiagnostic::default()
+        };
+        (max, diag)
+    }
 }
 
 impl RulePackServer for ClaudeCodeConfigBackend {
-    fn rule_packs(&self) -> &ValidatedRulePackSet {
-        &self.packs
-    }
+    fn rule_packs(&self) -> &ValidatedRulePackSet { &self.packs }
+    fn grammar(&self) -> tree_sitter::Language { tree_sitter_json::LANGUAGE.into() }
+    fn server_name(&self) -> &'static str { "claudecodeconfig" }
+    fn client(&self) -> &Client { &self.client }
+    fn adapter(&self) -> &AutoLspAdapter { &self.adapter }
+    fn workspace_index(&self) -> Option<&WorkspaceIndex> { Some(&self.index) }
 
-    fn grammar(&self) -> tree_sitter::Language {
-        tree_sitter_json::LANGUAGE.into()
-    }
+    fn scan_uri_classified(&self, uri: &Url, content: &str) -> ClassifiedFindings {
+        let kind = Self::classify_uri(uri.as_str());
+        let mut sync: Vec<Finding> = Vec::new();
 
-    fn server_name(&self) -> &'static str {
-        "claudecodeconfig"
-    }
+        match kind {
+            "skill" => {
+                for raw in validate_skill_frontmatter(content) {
+                    sync.push(Self::make_finding(&raw.code, &raw.message, "skill"));
+                }
+                for raw in ClaudeMdReplayable::analyze(&ClaudeMdAnalyzer::new(), content) {
+                    sync.push(Self::make_finding(&raw.code, &raw.message, "skill"));
+                }
+            }
+            "claude_md" => {
+                for raw in ClaudeMdReplayable::analyze(&ClaudeMdAnalyzer::new(), content) {
+                    sync.push(Self::make_finding(&raw.code, &raw.message, "claude_md"));
+                }
+            }
+            "agent" => {
+                for raw in validate_agent_frontmatter(content) {
+                    sync.push(Self::make_finding(&raw.code, &raw.message, "agent"));
+                }
+                for raw in FrontmatterReplayable::analyze(&FrontmatterAnalyzer::new(), content) {
+                    sync.push(Self::make_finding(&raw.code, &raw.message, "agent"));
+                }
+            }
+            "json" => {
+                for raw in JsonReplayable::analyze(&JsonAnalyzer::new(), content) {
+                    sync.push(Self::make_finding(&raw.code, &raw.message, "json"));
+                }
+            }
+            "toml" => {
+                for raw in TomlReplayable::analyze(&TomlAnalyzer::new(), content) {
+                    sync.push(Self::make_finding(&raw.code, &raw.message, "toml"));
+                }
+            }
+            "hook" => {
+                for raw in HookReplayable::analyze(&HookAnalyzer::new(), content) {
+                    sync.push(Self::make_finding(&raw.code, &raw.message, "hook"));
+                }
+            }
+            _ => {}
+        }
 
-    fn client(&self) -> &Client {
-        &self.client
-    }
-
-    fn adapter(&self) -> &AutoLspAdapter {
-        &self.adapter
-    }
-
-    fn workspace_index(&self) -> Option<&WorkspaceIndex> {
-        Some(&self.index)
+        (sync, vec![])
     }
 }
 
@@ -62,7 +149,7 @@ impl LanguageServer for ClaudeCodeConfigBackend {
 
     async fn initialized(&self, _: InitializedParams) {
         self.client
-            .log_message(MessageType::INFO, "ClaudeCodeConfig CANDIDATE")
+            .log_message(MessageType::INFO, "ClaudeCodeConfig LSP ready")
             .await;
     }
 
@@ -80,6 +167,14 @@ impl LanguageServer for ClaudeCodeConfigBackend {
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
         self.handle_did_close(params);
+    }
+
+    async fn hover(&self, params: HoverParams) -> lsp_max::jsonrpc::Result<Option<Hover>> {
+        crate::hover::text_document_hover(params).await
+    }
+
+    async fn completion(&self, params: CompletionParams) -> lsp_max::jsonrpc::Result<Option<CompletionResponse>> {
+        crate::completion::completion(params).await
     }
 }
 

@@ -171,7 +171,7 @@ impl OcelAccumulator {
     }
 
     /// Export accumulated events as an OCEL 2.0 JSON structure.
-    /// Returns a complete OCEL 2.0 log with the events and an empty objects array.
+    /// Returns the accumulated OCEL 2.0 log snapshot with current events and an empty objects array.
     pub fn export_ocel(&self) -> Value {
         let events = self.buffer.lock().unwrap_or_else(|p| p.into_inner());
         json!({

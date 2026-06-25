@@ -1,9 +1,9 @@
 {
-  "operation_id": "d3c73b9b-0a50-4f2a-a97e-7903e75c06cd",
-  "timestamp": "2026-06-25T08:53:13.276973Z",
+  "operation_id": "ebb9ef14-de87-4b1d-8aa5-7b11db737c01",
+  "timestamp": "2026-06-25T06:35:43.086346Z",
   "input_hashes": [
-    "actuator:ggen-sync@26.6.25",
-    "ggen.toml:66d6246b2c252eb0c41925df070aeb48ad113b5af0e272bfb08267a3cc265dca",
+    "actuator:ggen-sync@26.6.11",
+    "ggen.toml:8a683d3bf4e99478f76b6ee12b854e4d8ab36a588b4813e843c5260b43f94d30",
     "schema/claude-code-config.ttl:5f35f06fd5cf24a64011640b22d6847bc609db69828b28fd92b373c0fe85bd1d",
     "../lsp-max/ontology/lsp318.ttl:a857435336fbd77c743a6f14b491882bd51cab1362e0950333a30e4965b3e439",
     "../lsp-max/ontology/max-protocol.ttl:a83bd7f8929271a324012dca0b7b2abeb17976a2287a052c29e7a223cb2533f2",
@@ -13,7 +13,7 @@
     "sparql/file_types.rq:3c32017314e207e928db024ff12d3042c6d9304e1bf5b943cacfe9cc40ecbcb8",
     "sparql/hover.rq:d101a598c3c04998e3e5e782f355ab650809001329abb0204ceaff2195a96fc8",
     "sparql/completion.rq:36dc09398e7bae67dc1d80934bccea82095fb161b5083ffb6f3a1e6f24c5162c",
-    "sparql/semantic_tokens.rq:de17ccf3439dc333744fff5e7fe35e63a38e622d704d1e939c2e3981c4ab9065",
+    "sparql/semantic_tokens.rq:cc3db31b459597d70b344fb2ef1aff0b0ce9c76ead19042444f3e902e19a9560",
     "sparql/schema_fields.rq:11fd01becae31e29852c0a8d716d9a48fead4832cdaee273a224744ef8bb3648",
     "sparql/declare_constraints.rq:3d9c694178a281f2b664f63ccc2a540b12780cddc5e09e76fb0d0f6b51a5f60e",
     "sparql/virtual_docs.rq:ce88b167df308975b5c3f45a726deef5b9c253b2bba64545093b63842ac864fd",
@@ -23,20 +23,25 @@
   "output_hashes": [
     "./Cargo.toml:02e421a1582cda463d4436947f52e18a6a37db6e40e740dcc09cbbc37dfcb501",
     "./src/lib.rs:f42e1cadf5e05b102eca67bfe1b5884ad314133e8b34149be494c05bd643b40b",
-    "./src/main.rs:14ec47e28bec046ac828f512bcdf6e4b3998dbcef6816aae3213bfeb8dd81700",
+    "./src/main.rs:fbaef8d5feaa514c7d9eaa110b9b40fe4ceff9b1ddd49f83b6a1c96054393143",
     "./src/backend.rs:8d53d813079caf7e9f54c7db1835b85dc0ce9a05f8e5eb441a23a81418f069bf",
     "./src/capabilities.rs:64f5f3618db2f96144e8c86804d5065b50ae647a3dd0a3817c6f2fc0825ec83b",
     "./src/conformance.rs:63be7d7710f6d769e66f7e3b1fad16da6ca7bf1190481531b3e0377c2f7f9a1c",
     "./src/file_types.rs:be6314e8e77879125a3f8f0a359267563db1f7c7767766b82d2e92bebc92bd4d",
     "./src/hover.rs:a56900be8af4960da74081815250786b57846f2efe0da1f31efa0a26b8ee50e9",
     "./src/completion.rs:7a8ea1bf91c64d9d139f5b650006c0eb41004c0e39feae802bc66119b2fc53ab",
-    "./src/semantic_tokens.rs:d03baa08b2321d6397d54c8a277b76243245c0cf66ccf07cfaa7f8c98800d618",
+    "./src/semantic_tokens.rs:9fa25fe5bc4547805435031a1dd9cc330c057145df9013b8dd1e7017d0df9445",
     "./src/schema.rs:c1d5f0fe8608306248b5ee81a83e97266c4a1476c925000921059e40bfb99f0c",
     "./src/declare_model.rs:650592c358e92f03082b9c6b6a4137919ec44f10243f8b032b18fcea59fe1f63",
     "./src/virtual_docs.rs:ccf4f93108090c28536ec83ab3e19a61b359504f1d9881de8b1a42e974585ab2",
-    "./src/ocel_accumulator.rs:a500147ca7f604f02e727646d4974e6163eeccdf82bde52c89b129a214e513d1",
-    "./src/analyzers/mod.rs:9f511acb75eb88f0506552f871b9f55115228a7b2bf998cc4692db94644775d1"
+    "./src/ocel_accumulator.rs:9fba3c3b8e932a7f378059c9c184552eb654b50b501f1494e94edbe5fb915f5a",
+    "./src/analyzers/mod.rs:9f511acb75eb88f0506552f871b9f55115228a7b2bf998cc4692db94644775d1",
+    "./src/analyzers/claude_md.rs:8dd12dce84d68a4ae00aab2dd34a3cfee98aac3013bd79e2b255a200b9af5997",
+    "./src/analyzers/frontmatter.rs:a7482cf2e2a6557480f8c6d27d235843d832becee8dec5242b39240fe4d36971",
+    "./src/analyzers/hook.rs:10c5b13adae2388a0d91549723407eb84ec9f34164662b76178d3f302cbec546",
+    "./src/analyzers/json.rs:79211944eefd8d619bca29e3b1454587d8479ac0579e2521e4ce3842274eebfc",
+    "./src/analyzers/toml.rs:f4d6d8fbcd99744d91f6ef14490ffc417ae517fd641cfc1a5b7a6f4930c7b3e4"
   ],
-  "signature": "8ef4faec11cfed35eb78bbcc3af4a7d28f4614ca68775fc2a25aecf4353a7e9b84a6bdab77229f8e0bb5a1deeddc0d1d5b5a690f73ec78b1ac180bd092e1ad0d",
-  "previous_receipt_hash": "a6fa76aa371f08ec1556af93b57d68a3a605d4b29be89619d6391ecdbb893307"
+  "signature": "b6bb26002ca58cc2ba42aa0bf029390132a1765631a3f45bc52f8117cbb90fae4749261ef6842c9f48ae246f571fd3fdf27a6726d773a9b9583f434a73bebc06",
+  "previous_receipt_hash": "ff3c4fc3bfaad9d533a4a0ad4f4d10a7256db4e7c39ac77687ef451c8b4fb581"
 }
