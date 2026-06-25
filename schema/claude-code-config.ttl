@@ -23,7 +23,8 @@ ccc:DeclareConstraint  a rdfs:Class ; rdfs:label "Declare Constraint" ; rdfs:com
 # ConfigSurface properties
 ccc:filePattern       a rdf:Property ; rdfs:label "File Pattern" ; rdfs:comment "Glob pattern matched against URI" .
 ccc:languageId        a rdf:Property ; rdfs:label "Language ID" ; rdfs:comment "LSP language identifier" .
-ccc:analyzerModule    a rdf:Property ; rdfs:label "Analyzer Module" ; rdfs:comment "Rust module name for the analyzer" .
+ccc:analyzerModule       a rdf:Property ; rdfs:label "Analyzer Module" ; rdfs:comment "Rust module name for the analyzer (snake_case)" .
+ccc:analyzerModulePascal a rdf:Property ; rdfs:label "Analyzer Module Pascal" ; rdfs:comment "Rust struct prefix for the analyzer (PascalCase)" .
 ccc:parserKind        a rdf:Property ; rdfs:label "Parser Kind" ; rdfs:comment "json | frontmatter | markdown | toml | shell" .
 ccc:schemaSource      a rdf:Property ; rdfs:label "Schema Source" ; rdfs:comment "schemastore | inline | none" .
 ccc:schemaUrl         a rdf:Property ; rdfs:label "Schema URL" ; rdfs:comment "URL for schemastore-sourced schemas" .
@@ -69,6 +70,7 @@ ccc:SettingsJson
     ccc:filePattern "**/.claude/settings*.json" ;
     ccc:languageId "claude-config-json" ;
     ccc:analyzerModule "json" ;
+    ccc:analyzerModulePascal "Json" ;
     ccc:parserKind "json" ;
     ccc:schemaSource "schemastore" ;
     ccc:schemaUrl "https://json.schemastore.org/claude-code-settings.json" ;
@@ -77,7 +79,9 @@ ccc:SettingsJson
 ccc:McpJson
     a ccc:ConfigSurface ;
     ccc:filePattern "**/mcp.json" ;
+    ccc:languageId "claude-config-json" ;
     ccc:analyzerModule "json" ;
+    ccc:analyzerModulePascal "Json" ;
     ccc:parserKind "json" ;
     ccc:schemaSource "inline" ;
     rdfs:label "MCP servers (mcp.json)" .
@@ -85,7 +89,9 @@ ccc:McpJson
 ccc:PluginJson
     a ccc:ConfigSurface ;
     ccc:filePattern "**/plugin.json" ;
+    ccc:languageId "claude-config-json" ;
     ccc:analyzerModule "json" ;
+    ccc:analyzerModulePascal "Json" ;
     ccc:parserKind "json" ;
     ccc:schemaSource "schemastore" ;
     ccc:schemaUrl "https://anthropic.com/claude-code/plugin.schema.json" ;
@@ -94,7 +100,9 @@ ccc:PluginJson
 ccc:MarketplaceJson
     a ccc:ConfigSurface ;
     ccc:filePattern "**/marketplace.json" ;
+    ccc:languageId "claude-config-json" ;
     ccc:analyzerModule "json" ;
+    ccc:analyzerModulePascal "Json" ;
     ccc:parserKind "json" ;
     ccc:schemaSource "inline" ;
     rdfs:label "Plugin marketplace catalog (marketplace.json)" .
@@ -102,7 +110,9 @@ ccc:MarketplaceJson
 ccc:KeybindingsJson
     a ccc:ConfigSurface ;
     ccc:filePattern "**/keybindings.json" ;
+    ccc:languageId "claude-config-json" ;
     ccc:analyzerModule "json" ;
+    ccc:analyzerModulePascal "Json" ;
     ccc:parserKind "json" ;
     ccc:schemaSource "inline" ;
     rdfs:label "Key bindings (keybindings.json)" .
@@ -110,7 +120,9 @@ ccc:KeybindingsJson
 ccc:AgentMd
     a ccc:ConfigSurface ;
     ccc:filePattern "**/.claude/agents/*.md" ;
+    ccc:languageId "claude-config-markdown" ;
     ccc:analyzerModule "frontmatter" ;
+    ccc:analyzerModulePascal "Frontmatter" ;
     ccc:parserKind "frontmatter" ;
     ccc:schemaSource "inline" ;
     rdfs:label "Agent definition (.claude/agents/*.md)" .
@@ -118,7 +130,9 @@ ccc:AgentMd
 ccc:SkillMd
     a ccc:ConfigSurface ;
     ccc:filePattern "**/.claude/skills/*/SKILL.md" ;
+    ccc:languageId "claude-config-markdown" ;
     ccc:analyzerModule "frontmatter" ;
+    ccc:analyzerModulePascal "Frontmatter" ;
     ccc:parserKind "frontmatter" ;
     ccc:schemaSource "inline" ;
     rdfs:label "Skill definition (.claude/skills/*/SKILL.md)" .
@@ -126,7 +140,9 @@ ccc:SkillMd
 ccc:ClaudeMd
     a ccc:ConfigSurface ;
     ccc:filePattern "**/CLAUDE.md" ;
+    ccc:languageId "claude-config-markdown" ;
     ccc:analyzerModule "claude_md" ;
+    ccc:analyzerModulePascal "ClaudeMd" ;
     ccc:parserKind "markdown" ;
     ccc:schemaSource "none" ;
     rdfs:label "Project documentation (CLAUDE.md)" .
@@ -134,7 +150,9 @@ ccc:ClaudeMd
 ccc:AgentsMd
     a ccc:ConfigSurface ;
     ccc:filePattern "**/AGENTS.md" ;
+    ccc:languageId "claude-config-markdown" ;
     ccc:analyzerModule "claude_md" ;
+    ccc:analyzerModulePascal "ClaudeMd" ;
     ccc:parserKind "markdown" ;
     ccc:schemaSource "none" ;
     rdfs:label "Agent inventory (AGENTS.md)" .
@@ -142,7 +160,9 @@ ccc:AgentsMd
 ccc:LspMaxAutoToml
     a ccc:ConfigSurface ;
     ccc:filePattern "**/.claude/lsp-max-auto.toml" ;
+    ccc:languageId "claude-config-toml" ;
     ccc:analyzerModule "toml" ;
+    ccc:analyzerModulePascal "Toml" ;
     ccc:parserKind "toml" ;
     ccc:schemaSource "inline" ;
     rdfs:label "LSP auto-discovery (.claude/lsp-max-auto.toml)" .
@@ -150,7 +170,9 @@ ccc:LspMaxAutoToml
 ccc:HookScript
     a ccc:ConfigSurface ;
     ccc:filePattern "**/.claude/hooks/*.sh" ;
+    ccc:languageId "shellscript" ;
     ccc:analyzerModule "hook" ;
+    ccc:analyzerModulePascal "Hook" ;
     ccc:parserKind "shell" ;
     ccc:schemaSource "none" ;
     rdfs:label "Hook script (.claude/hooks/*.sh)" .

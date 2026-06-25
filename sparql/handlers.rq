@@ -1,0 +1,20 @@
+PREFIX lsp: <https://lsp-max.rs/ontology/>
+PREFIX law: <https://lsp-max.rs/law/>
+
+SELECT ?server_name ?method_name ?law_status WHERE {
+    BIND("ClaudeCodeConfig" AS ?server_name)
+    { BIND("textDocument/hover" AS ?method_name) BIND("CANDIDATE" AS ?law_status) }
+    UNION
+    { BIND("textDocument/completion" AS ?method_name) BIND("CANDIDATE" AS ?law_status) }
+    UNION
+    { BIND("textDocument/semanticTokens/full" AS ?method_name) BIND("CANDIDATE" AS ?law_status) }
+    UNION
+    { BIND("textDocument/didOpen" AS ?method_name) BIND("CANDIDATE" AS ?law_status) }
+    UNION
+    { BIND("textDocument/didChange" AS ?method_name) BIND("CANDIDATE" AS ?law_status) }
+    UNION
+    { BIND("textDocument/didClose" AS ?method_name) BIND("CANDIDATE" AS ?law_status) }
+    UNION
+    { BIND("workspace/textDocumentContent" AS ?method_name) BIND("CANDIDATE" AS ?law_status) }
+}
+ORDER BY ?method_name

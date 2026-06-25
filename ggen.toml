@@ -4,9 +4,12 @@ version     = "26.6.24"
 description = "LSP server for Claude Code configuration files — generated from claude-code-config ontology"
 
 [ontology]
-source        = "schema/claude-code-config.ttl"
-imports       = []
-standard_only = false
+source  = "schema/claude-code-config.ttl"
+imports = [
+    "../lsp-max/ontology/lsp318.ttl",
+    "../lsp-max/ontology/max-protocol.ttl",
+    "../lsp-max/ontology/law-axes.ttl",
+]
 
 [inference]
 rules = [
@@ -16,146 +19,154 @@ rules = [
 [generation]
 output_dir = "."
 
-# ─── Rule 1: main ────────────────────────────────────────────────────────────
+[[packs]]
+name     = "lsp-max"
+registry = "local"
+path     = "../lsp-max"
+
+# ─── Rule: cargo ─────────────────────────────────────────────────────────────
 
 [[generation.rules]]
-name        = "main"
-query       = { inline = "SELECT ?name ?version WHERE { BIND(\"claude-code-config-lsp\" AS ?name) BIND(\"26.6.24\" AS ?version) }" }
-template    = { file = "/Users/sac/lsp-max/templates/lsp-max/cargo.toml.tera" }
+name        = "cargo"
+query       = { inline = "SELECT (\"claude-code-config-lsp\" AS ?name) (\"26.6.24\" AS ?version) WHERE {}" }
+template    = { pack = "lsp-max", output = "templates", file = "cargo.toml.tera" }
 output_file = "Cargo.toml"
 mode        = "Overwrite"
 
-# ─── Rule 2: lib ─────────────────────────────────────────────────────────────
+# ─── Rule: lib ───────────────────────────────────────────────────────────────
 
 [[generation.rules]]
 name        = "lib"
-query       = { inline = "SELECT ?server_name WHERE { BIND(\"ClaudeCodeConfig\" AS ?server_name) }" }
-template    = { file = "/Users/sac/lsp-max/templates/lsp-max/lib.rs.tera" }
+query       = { file = "sparql/modules.rq" }
+template    = { pack = "lsp-max", output = "templates", file = "lib.rs.tera" }
 output_file = "src/lib.rs"
 mode        = "Overwrite"
 
-# ─── Rule 3: main-rs ─────────────────────────────────────────────────────────
+# ─── Rule: main-rs ───────────────────────────────────────────────────────────
 
 [[generation.rules]]
 name        = "main-rs"
-query       = { inline = "SELECT ?server_name ?snake_name WHERE { BIND(\"ClaudeCodeConfig\" AS ?server_name) BIND(\"claude_code_config\" AS ?snake_name) }" }
-template    = { file = "/Users/sac/lsp-max/templates/lsp-max/main.rs.tera" }
+query       = { inline = "SELECT (\"ClaudeCodeConfig\" AS ?server_name) (\"claude_code_config_lsp\" AS ?snake_name) WHERE {}" }
+template    = { pack = "lsp-max", output = "templates", file = "main.rs.tera" }
 output_file = "src/main.rs"
 mode        = "Overwrite"
 
-# ─── Rule 4: file-types ──────────────────────────────────────────────────────
+# ─── Rule: backend ───────────────────────────────────────────────────────────
+
+[[generation.rules]]
+name        = "backend"
+query       = { file = "sparql/handlers.rq" }
+template    = { pack = "lsp-max", output = "templates", file = "backend.rs.tera" }
+output_file = "src/backend.rs"
+mode        = "Overwrite"
+skip_empty  = false
+
+# ─── Rule: capabilities ──────────────────────────────────────────────────────
+
+[[generation.rules]]
+name        = "capabilities"
+query       = { pack = "lsp-max", output = "queries", file = "capabilities.sparql" }
+template    = { pack = "lsp-max", output = "templates", file = "capabilities.rs.tera" }
+output_file = "src/capabilities.rs"
+mode        = "Overwrite"
+skip_empty  = true
+
+# ─── Rule: conformance ───────────────────────────────────────────────────────
+
+[[generation.rules]]
+name        = "conformance"
+query       = { pack = "lsp-max", output = "queries", file = "conformance.sparql" }
+template    = { pack = "lsp-max", output = "templates", file = "conformance_vector.rs.tera" }
+output_file = "src/conformance.rs"
+mode        = "Overwrite"
+skip_empty  = true
+
+# ─── Rule: file-types ────────────────────────────────────────────────────────
 
 [[generation.rules]]
 name        = "file-types"
-query       = { inline = """
-PREFIX ccc: <https://claude-code-config-lsp.rs/ontology/>
-SELECT ?extension ?server_id
-WHERE {
-    ?surface a ccc:ConfigSurface ;
-        ccc:filePattern ?extension ;
-        ccc:languageId ?server_id .
-}
-ORDER BY ?extension
-""" }
-template    = { file = "/Users/sac/lsp-max/templates/lsp-max/file_types.rs.tera" }
+query       = { file = "sparql/file_types.rq" }
+template    = { pack = "lsp-max", output = "templates", file = "file_types.rs.tera" }
 output_file = "src/file_types.rs"
 mode        = "Overwrite"
 
-# ─── Rule 5: hover ───────────────────────────────────────────────────────────
+# ─── Rule: hover ─────────────────────────────────────────────────────────────
 
 [[generation.rules]]
 name        = "hover"
-query       = { inline = "SELECT ?law_status WHERE { BIND(\"CANDIDATE\" AS ?law_status) }" }
-template    = { file = "/Users/sac/lsp-max/templates/lsp-max/hover.rs.tera" }
+query       = { file = "sparql/hover.rq" }
+template    = { pack = "lsp-max", output = "templates", file = "hover.rs.tera" }
 output_file = "src/hover.rs"
 mode        = "Overwrite"
 
-# ─── Rule 6: completion ──────────────────────────────────────────────────────
+# ─── Rule: completion ────────────────────────────────────────────────────────
 
 [[generation.rules]]
 name        = "completion"
-query       = { inline = "SELECT ?method_name ?snake_method ?law_status WHERE { BIND(\"textDocument/completion\" AS ?method_name) BIND(\"text_document_completion\" AS ?snake_method) BIND(\"CANDIDATE\" AS ?law_status) }" }
-template    = { file = "/Users/sac/lsp-max/templates/lsp-max/completion.rs.tera" }
+query       = { file = "sparql/completion.rq" }
+template    = { pack = "lsp-max", output = "templates", file = "completion.rs.tera" }
 output_file = "src/completion.rs"
 mode        = "Overwrite"
 
-# ─── Rule 7: semantic-tokens ─────────────────────────────────────────────────
+# ─── Rule: semantic-tokens ───────────────────────────────────────────────────
 
 [[generation.rules]]
 name        = "semantic-tokens"
-query       = { inline = "SELECT ?method_name ?snake_method ?param_type ?return_type ?law_status WHERE { BIND(\"textDocument/semanticTokens/full\" AS ?method_name) BIND(\"semantic_tokens_full\" AS ?snake_method) BIND(\"SemanticTokensParams\" AS ?param_type) BIND(\"Option<SemanticTokensResult>\" AS ?return_type) BIND(\"CANDIDATE\" AS ?law_status) }" }
-template    = { file = "/Users/sac/lsp-max/templates/lsp-max/handler.rs.tera" }
+query       = { file = "sparql/semantic_tokens.rq" }
+template    = { pack = "lsp-max", output = "templates", file = "semantic_tokens.rs.tera" }
 output_file = "src/semantic_tokens.rs"
 mode        = "Overwrite"
 
-# ─── Rule 8: ocel-accumulator ────────────────────────────────────────────────
+# ─── Rule: schema ────────────────────────────────────────────────────────────
 
 [[generation.rules]]
-name        = "ocel-accumulator"
-query       = { inline = "SELECT ?placeholder WHERE { BIND(\"ocel\" AS ?placeholder) }" }
-template    = { file = "/Users/sac/lsp-max/templates/lsp-max/ocel_accumulator.rs.tera" }
-output_file = "src/ocel_accumulator.rs"
+name        = "schema"
+query       = { file = "sparql/schema_fields.rq" }
+template    = { pack = "lsp-max", output = "templates", file = "schema_module.rs.tera" }
+output_file = "src/schema.rs"
 mode        = "Overwrite"
 
-# ─── Rule 9: declare-model ───────────────────────────────────────────────────
+# ─── Rule: declare-model ─────────────────────────────────────────────────────
 
 [[generation.rules]]
 name        = "declare-model"
 query       = { file = "sparql/declare_constraints.rq" }
-template    = { file = "/Users/sac/lsp-max/templates/lsp-max/declare_model.rs.tera" }
+template    = { pack = "lsp-max", output = "templates", file = "declare_model.rs.tera" }
 output_file = "src/declare_model.rs"
 mode        = "Overwrite"
 
-# ─── Rule 10: virtual-docs ───────────────────────────────────────────────────
+# ─── Rule: virtual-docs ──────────────────────────────────────────────────────
 
 [[generation.rules]]
 name        = "virtual-docs"
-query       = { inline = "SELECT ?server_name ?virtual_doc_scheme ?virtual_doc_uri ?doc_title ?doc_type WHERE { BIND(\"ClaudeCodeConfig\" AS ?server_name) BIND(\"claude-code-config\" AS ?virtual_doc_scheme) BIND(\"claude-code-config://process-model\" AS ?virtual_doc_uri) BIND(\"Process Model\" AS ?doc_title) BIND(\"markdown\" AS ?doc_type) }" }
-template    = { file = "/Users/sac/lsp-max/templates/lsp-max/virtual_doc.rs.tera" }
+query       = { file = "sparql/virtual_docs.rq" }
+template    = { pack = "lsp-max", output = "templates", file = "virtual_doc.rs.tera" }
 output_file = "src/virtual_docs.rs"
 mode        = "Overwrite"
 
-# ─── Rule 11: analyzer-json ──────────────────────────────────────────────────
+# ─── Rule: ocel-accumulator ──────────────────────────────────────────────────
 
 [[generation.rules]]
-name        = "analyzer-json"
-query       = { inline = "SELECT ?analyzer_module ?analyzer_module_pascal ?law_status WHERE { BIND(\"json\" AS ?analyzer_module) BIND(\"Json\" AS ?analyzer_module_pascal) BIND(\"CANDIDATE\" AS ?law_status) }" }
-template    = { file = "/Users/sac/lsp-max/templates/lsp-max/analyzer_stub.rs.tera" }
-output_file = "src/analyzers/json.rs"
+name        = "ocel-accumulator"
+query       = { inline = "SELECT (\"ClaudeCodeConfig\" AS ?server_name) WHERE {}" }
+template    = { pack = "lsp-max", output = "templates", file = "ocel_accumulator.rs.tera" }
+output_file = "src/ocel_accumulator.rs"
 mode        = "Overwrite"
 
-# ─── Rule 12: analyzer-frontmatter ───────────────────────────────────────────
+# ─── Rule: analyzers-mod (module declarations for all analyzers) ─────────────
 
 [[generation.rules]]
-name        = "analyzer-frontmatter"
-query       = { inline = "SELECT ?analyzer_module ?analyzer_module_pascal ?law_status WHERE { BIND(\"frontmatter\" AS ?analyzer_module) BIND(\"Frontmatter\" AS ?analyzer_module_pascal) BIND(\"CANDIDATE\" AS ?law_status) }" }
-template    = { file = "/Users/sac/lsp-max/templates/lsp-max/analyzer_stub.rs.tera" }
-output_file = "src/analyzers/frontmatter.rs"
+name        = "analyzers-mod"
+query       = { file = "sparql/config_surfaces.rq" }
+template    = { pack = "lsp-max", output = "templates", file = "analyzers_mod.rs.tera" }
+output_file = "src/analyzers/mod.rs"
 mode        = "Overwrite"
 
-# ─── Rule 13: analyzer-claude-md ─────────────────────────────────────────────
+# ─── Rules: analyzers (one per config surface, dynamic output) ───────────────
 
 [[generation.rules]]
-name        = "analyzer-claude-md"
-query       = { inline = "SELECT ?analyzer_module ?analyzer_module_pascal ?law_status WHERE { BIND(\"claude_md\" AS ?analyzer_module) BIND(\"ClaudeMd\" AS ?analyzer_module_pascal) BIND(\"CANDIDATE\" AS ?law_status) }" }
-template    = { file = "/Users/sac/lsp-max/templates/lsp-max/analyzer_stub.rs.tera" }
-output_file = "src/analyzers/claude_md.rs"
-mode        = "Overwrite"
-
-# ─── Rule 14: analyzer-toml ──────────────────────────────────────────────────
-
-[[generation.rules]]
-name        = "analyzer-toml"
-query       = { inline = "SELECT ?analyzer_module ?analyzer_module_pascal ?law_status WHERE { BIND(\"toml\" AS ?analyzer_module) BIND(\"Toml\" AS ?analyzer_module_pascal) BIND(\"CANDIDATE\" AS ?law_status) }" }
-template    = { file = "/Users/sac/lsp-max/templates/lsp-max/analyzer_stub.rs.tera" }
-output_file = "src/analyzers/toml.rs"
-mode        = "Overwrite"
-
-# ─── Rule 15: analyzer-hook ──────────────────────────────────────────────────
-
-[[generation.rules]]
-name        = "analyzer-hook"
-query       = { inline = "SELECT ?analyzer_module ?analyzer_module_pascal ?law_status WHERE { BIND(\"hook\" AS ?analyzer_module) BIND(\"Hook\" AS ?analyzer_module_pascal) BIND(\"CANDIDATE\" AS ?law_status) }" }
-template    = { file = "/Users/sac/lsp-max/templates/lsp-max/analyzer_stub.rs.tera" }
-output_file = "src/analyzers/hook.rs"
+name        = "analyzers"
+query       = { file = "sparql/config_surfaces.rq" }
+template    = { pack = "lsp-max", output = "templates", file = "analyzer_stub.rs.tera" }
+output_file = "src/analyzers/{{ analyzer_module }}.rs"
 mode        = "Overwrite"

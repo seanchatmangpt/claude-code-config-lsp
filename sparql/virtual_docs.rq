@@ -1,10 +1,8 @@
-PREFIX ccc: <https://claude-code-config-lsp.rs/ontology/>
-
-SELECT ?vdoc_uri ?vdoc_title ?vdoc_description
-WHERE {
-    ?vdoc_id a ccc:VirtualDocument ;
-        ccc:vdocUri ?vdoc_uri ;
-        ccc:vdocTitle ?vdoc_title ;
-        ccc:vdocDescription ?vdoc_description .
+SELECT ?virtual_doc_uri ?virtual_doc_scheme ?doc_type ?doc_title ?server_name ?include_diagnostics WHERE {
+    BIND("claude-config://health" AS ?virtual_doc_uri)
+    BIND("claude-config" AS ?virtual_doc_scheme)
+    BIND("health" AS ?doc_type)
+    BIND("Claude Code Config Health Report" AS ?doc_title)
+    BIND("ClaudeCodeConfig" AS ?server_name)
+    BIND("true" AS ?include_diagnostics)
 }
-ORDER BY ?vdoc_uri

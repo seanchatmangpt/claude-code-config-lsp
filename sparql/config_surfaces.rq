@@ -1,16 +1,10 @@
 PREFIX ccc: <https://claude-code-config-lsp.rs/ontology/>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
-SELECT ?surface_id ?surface_label ?file_pattern ?language_id ?analyzer_module ?parser_kind ?schema_source ?schema_url
-WHERE {
-    ?surface_id a ccc:ConfigSurface ;
-        rdfs:label ?surface_label ;
-        ccc:filePattern ?file_pattern ;
-        ccc:languageId ?language_id ;
+SELECT DISTINCT ?analyzer_module ?analyzer_module_pascal ?law_status WHERE {
+    ?surface a ccc:ConfigSurface ;
         ccc:analyzerModule ?analyzer_module ;
-        ccc:parserKind ?parser_kind ;
-        ccc:schemaSource ?schema_source .
-
-    OPTIONAL { ?surface_id ccc:schemaUrl ?schema_url . }
+        ccc:analyzerModulePascal ?analyzer_module_pascal .
+    BIND("CANDIDATE" AS ?law_status)
 }
-ORDER BY ?analyzer_module ?surface_label
+ORDER BY ?analyzer_module

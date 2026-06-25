@@ -2,129 +2,101 @@
 //! Source: schema/domain.ttl + process model definitions
 //! Edit the .ttl, run `ggen sync` — never edit this file directly
 //!
-//! This module provides factory methods for creating named Declare constraint models.
-//! Each model defines normative process constraints for conformance checking.
-//!
-//! Reference: W.M.P. van der Aalst et al., "Declarative workflows: Balancing
-//! between flexibility and support" (CEUR-WS 2005). OCEL 2.0 spec §3.2.
+//! Reference: W.M.P. van der Aalst et al., "Declarative workflows" (CEUR-WS 2005).
+//! Status: CANDIDATE — receipt chain OPEN
 
-use lsp_max_compositor::declare::{DeclareModel, DeclareTemplate, DeclareConstraint, ActivityName};
-use lsp_max_compositor::declare::{Support, Confidence};
-use std::str::FromStr;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helper Functions
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Parse an activity name, panicking if empty.
-fn act(name: &str) -> ActivityName {
-    ActivityName::from_str(name).expect("non-empty activity name")
+/// A Declare constraint type (LTL-based declarative specification).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConstraintType {
+    Init,
+    End,
+    Response,
+    Precedence,
+    ExactlyOne,
+    NotCoExistence,
+    RespondedExistence,
+    Absence,
+    ChainResponse,
+    Other(String),
 }
 
-/// Construct a Declare constraint with unit support and confidence.
-fn constraint(template: DeclareTemplate, activities: Vec<ActivityName>) -> DeclareConstraint {
-    DeclareConstraint {
-        template,
-        activities,
-        support: Support::new(1.0).expect("support 1.0 is in [0,1]").value(),
-        confidence: Confidence::new(1.0)
-            .expect("confidence 1.0 is in [0,1]")
-            .value(),
+impl From<&str> for ConstraintType {
+    fn from(s: &str) -> Self {
+        match s {
+            "Init" => Self::Init,
+            "End" => Self::End,
+            "Response" => Self::Response,
+            "Precedence" => Self::Precedence,
+            "ExactlyOne" => Self::ExactlyOne,
+            "NotCoExistence" => Self::NotCoExistence,
+            "RespondedExistence" => Self::RespondedExistence,
+            "Absence" => Self::Absence,
+            "ChainResponse" => Self::ChainResponse,
+            other => Self::Other(other.to_string()),
+        }
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Factory Methods
-// ─────────────────────────────────────────────────────────────────────────────
+/// A single Declare constraint.
+#[derive(Debug, Clone)]
+pub struct DeclareConstraint {
+    pub constraint_type: ConstraintType,
+    pub antecedent: String,
+    pub consequent: Option<String>,
+}
 
-
-/// Declare model: Provisioned Constraints
-///
-/// Constraint set: 4 constraint(s)
-///
-/// Normative activities extracted from constraint antecedents and consequents.
-/// Constraints generated from domain ontology.
-///
-/// Constraint types:
-
-///  - Precedence
-
-///  - Response
-
-///  - Response
-
-///  - Response
-
-///
-pub fn declare_model() -> DeclareModel {
-    let constraints = vec![
-
-        constraint(
-            DeclareTemplate::Precedence,
-            vec![
-                act("WorkspaceIndexed"),
-                act("LsifExported"),
-            ],
-        ),
-
-        constraint(
-            DeclareTemplate::Response,
-            vec![
-                act("CompletionRequested"),
-                act("CompletionProvided"),
-            ],
-        ),
-
-        constraint(
-            DeclareTemplate::Response,
-            vec![
-                act("DocumentOpened"),
-                act("DiagnosticsPublished"),
-            ],
-        ),
-
-        constraint(
-            DeclareTemplate::Response,
-            vec![
-                act("HoverRequested"),
-                act("HoverProvided"),
-            ],
-        ),
-
-    ];
-
-    let activities = constraints
-        .iter()
-        .flat_map(|c| c.activities.iter().cloned())
-        .collect();
-
-    DeclareModel::new("provisioned_constraints", activities, constraints)
+/// A Declare model: a named set of constraints over activities.
+#[derive(Debug, Clone)]
+pub struct DeclareModel {
+    pub name: &'static str,
+    pub constraints: Vec<DeclareConstraint>,
 }
 
 
+/// Build the normative Declare model for this server.
+///
+/// Constraint set: 4 constraint(s) from domain ontology.
+pub fn declare_model() -> DeclareModel {
+    DeclareModel {
+        name: "server_process_model",
+        constraints: vec![
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Tests
-// ─────────────────────────────────────────────────────────────────────────────
+            DeclareConstraint {
+                constraint_type: ConstraintType::from("Precedence"),
+                antecedent: "WorkspaceIndexed".to_string(),
+                consequent: Some("LsifExported".to_string()),
+            },
+
+            DeclareConstraint {
+                constraint_type: ConstraintType::from("Response"),
+                antecedent: "CompletionRequested".to_string(),
+                consequent: Some("CompletionProvided".to_string()),
+            },
+
+            DeclareConstraint {
+                constraint_type: ConstraintType::from("Response"),
+                antecedent: "DocumentOpened".to_string(),
+                consequent: Some("DiagnosticsPublished".to_string()),
+            },
+
+            DeclareConstraint {
+                constraint_type: ConstraintType::from("Response"),
+                antecedent: "HoverRequested".to_string(),
+                consequent: Some("HoverProvided".to_string()),
+            },
+
+        ],
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-
     #[test]
-    fn test_declare_model_loads() {
+    fn declare_model_loads() {
         let model = declare_model();
-        assert_eq!(model.name, "provisioned_constraints");
-        assert!(!model.constraints.is_empty(), "model must have at least one constraint");
-        // Verify activities extracted from constraints
-        assert!(!model.activities.is_empty(), "model must define at least one activity");
+        assert_eq!(model.constraints.len(), 4);
     }
-
-    #[test]
-    fn test_constraint_count() {
-        let model = declare_model();
-        assert_eq!(model.constraints.len(), 4, "expected 4 constraint(s)");
-    }
-
 }

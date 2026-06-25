@@ -2,7 +2,24 @@
 //! CANDIDATE
 
 pub mod backend;
-pub mod capabilities;
-pub mod conformance;
+
+pub mod ocel_accumulator;
+
+pub mod virtual_docs;
+
+pub mod declare_model;
+
+pub mod completion;
+
+pub mod schema;
+
+pub mod file_types;
+
+pub mod semantic_tokens;
+
+pub mod hover;
+
+pub mod analyzers;
+
 
 pub use backend::ClaudeCodeConfigBackend as Backend;

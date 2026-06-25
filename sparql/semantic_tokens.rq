@@ -1,9 +1,15 @@
 PREFIX ccc: <https://claude-code-config-lsp.rs/ontology/>
 
-SELECT ?token_type_name ?token_description
-WHERE {
+SELECT ?token_type ?token_modifier ?css_class ?law_status ?supported_languages ?language_display ?tree_sitter_crate ?witness_sample ?witness_multiline_sample WHERE {
     ?token_id a ccc:SemanticTokenType ;
-        ccc:tokenTypeName ?token_type_name ;
-        ccc:tokenDescription ?token_description .
+        ccc:tokenTypeName ?token_type .
+    OPTIONAL { ?token_id ccc:tokenDescription ?css_class . }
+    BIND("" AS ?token_modifier)
+    BIND("CANDIDATE" AS ?law_status)
+    BIND("json markdown toml" AS ?supported_languages)
+    BIND("Claude Code Config" AS ?language_display)
+    BIND("tree_sitter_json" AS ?tree_sitter_crate)
+    BIND("true" AS ?witness_sample)
+    BIND("false" AS ?witness_multiline_sample)
 }
-ORDER BY ?token_type_name
+ORDER BY ?token_type

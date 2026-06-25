@@ -1,0 +1,4 @@
+SELECT ?method_name ?law_status WHERE {
+    BIND("textDocument/hover" AS ?method_name)
+    BIND("CANDIDATE" AS ?law_status)
+}

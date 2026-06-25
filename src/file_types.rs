@@ -7,7 +7,27 @@ use std::collections::HashMap;
 /// Supported file extensions mapped to LSP server IDs
 pub const SUPPORTED_FILE_TYPES: &[(&str, &str)] = &[
 
+    ("**/.claude/agents/*.md", "claude-config-markdown"),
+
+    ("**/.claude/hooks/*.sh", "shellscript"),
+
+    ("**/.claude/lsp-max-auto.toml", "claude-config-toml"),
+
     ("**/.claude/settings*.json", "claude-config-json"),
+
+    ("**/.claude/skills/*/SKILL.md", "claude-config-markdown"),
+
+    ("**/AGENTS.md", "claude-config-markdown"),
+
+    ("**/CLAUDE.md", "claude-config-markdown"),
+
+    ("**/keybindings.json", "claude-config-json"),
+
+    ("**/marketplace.json", "claude-config-json"),
+
+    ("**/mcp.json", "claude-config-json"),
+
+    ("**/plugin.json", "claude-config-json"),
 
 ];
 
@@ -44,7 +64,27 @@ mod tests {
     #[test]
     fn test_extension_lookup() {
 
+        assert_eq!(get_server_for_extension("**/.claude/agents/*.md"), Some("claude-config-markdown"));
+
+        assert_eq!(get_server_for_extension("**/.claude/hooks/*.sh"), Some("shellscript"));
+
+        assert_eq!(get_server_for_extension("**/.claude/lsp-max-auto.toml"), Some("claude-config-toml"));
+
         assert_eq!(get_server_for_extension("**/.claude/settings*.json"), Some("claude-config-json"));
+
+        assert_eq!(get_server_for_extension("**/.claude/skills/*/SKILL.md"), Some("claude-config-markdown"));
+
+        assert_eq!(get_server_for_extension("**/AGENTS.md"), Some("claude-config-markdown"));
+
+        assert_eq!(get_server_for_extension("**/CLAUDE.md"), Some("claude-config-markdown"));
+
+        assert_eq!(get_server_for_extension("**/keybindings.json"), Some("claude-config-json"));
+
+        assert_eq!(get_server_for_extension("**/marketplace.json"), Some("claude-config-json"));
+
+        assert_eq!(get_server_for_extension("**/mcp.json"), Some("claude-config-json"));
+
+        assert_eq!(get_server_for_extension("**/plugin.json"), Some("claude-config-json"));
 
     }
 
@@ -58,7 +98,27 @@ mod tests {
         let map = extension_to_server();
         assert_eq!(map.len(), SUPPORTED_FILE_TYPES.len());
 
+        assert_eq!(map.get("**/.claude/agents/*.md").map(|s| s.as_str()), Some("claude-config-markdown"));
+
+        assert_eq!(map.get("**/.claude/hooks/*.sh").map(|s| s.as_str()), Some("shellscript"));
+
+        assert_eq!(map.get("**/.claude/lsp-max-auto.toml").map(|s| s.as_str()), Some("claude-config-toml"));
+
         assert_eq!(map.get("**/.claude/settings*.json").map(|s| s.as_str()), Some("claude-config-json"));
+
+        assert_eq!(map.get("**/.claude/skills/*/SKILL.md").map(|s| s.as_str()), Some("claude-config-markdown"));
+
+        assert_eq!(map.get("**/AGENTS.md").map(|s| s.as_str()), Some("claude-config-markdown"));
+
+        assert_eq!(map.get("**/CLAUDE.md").map(|s| s.as_str()), Some("claude-config-markdown"));
+
+        assert_eq!(map.get("**/keybindings.json").map(|s| s.as_str()), Some("claude-config-json"));
+
+        assert_eq!(map.get("**/marketplace.json").map(|s| s.as_str()), Some("claude-config-json"));
+
+        assert_eq!(map.get("**/mcp.json").map(|s| s.as_str()), Some("claude-config-json"));
+
+        assert_eq!(map.get("**/plugin.json").map(|s| s.as_str()), Some("claude-config-json"));
 
     }
 }

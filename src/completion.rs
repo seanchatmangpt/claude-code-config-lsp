@@ -10,13 +10,14 @@ use lsp_types_max::*;
 
 /// CANDIDATE: textDocument/completion
 /// Completion handler — provides context-aware code completions
-pub async fn text_document_completion(params: CompletionParams) -> Result<Option<CompletionResponse>> {
+pub async fn completion(params: CompletionParams) -> Result<Option<CompletionResponse>> {
 
     // CANDIDATE — stub returns empty completion list
     let _ = params;
     Ok(Some(CompletionResponse::List(CompletionList {
         is_incomplete: false,
         items: vec![],
+        ..Default::default()
     })))
 
 }

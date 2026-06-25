@@ -350,14 +350,17 @@ name = "claude-code-config-lsp"
 version = "26.6.24"
 dependencies = [
  "async-trait",
+ "blake3",
+ "chrono",
  "lsp-max",
- "lsp-max-protocol",
  "lsp-types-max",
  "serde",
  "serde_json",
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "tree-sitter",
+ "tree-sitter-json",
 ]
 
 [[package]]
@@ -2685,6 +2688,16 @@ dependencies = [
  "regex-syntax",
  "serde_json",
  "streaming-iterator",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "tree-sitter-json"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "86a5d6b3ea17e06e7a34aabeadd68f5866c0d0f9359155d432095f8b751865e4"
+dependencies = [
+ "cc",
  "tree-sitter-language",
 ]
 

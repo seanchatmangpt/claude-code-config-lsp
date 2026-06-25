@@ -1,0 +1,21 @@
+PREFIX ccc: <https://claude-code-config-lsp.rs/ontology/>
+
+SELECT ?server_name ?module_name WHERE {
+    { BIND("ClaudeCodeConfig" AS ?server_name) BIND("completion" AS ?module_name) }
+    UNION
+    { BIND("ClaudeCodeConfig" AS ?server_name) BIND("declare_model" AS ?module_name) }
+    UNION
+    { BIND("ClaudeCodeConfig" AS ?server_name) BIND("file_types" AS ?module_name) }
+    UNION
+    { BIND("ClaudeCodeConfig" AS ?server_name) BIND("hover" AS ?module_name) }
+    UNION
+    { BIND("ClaudeCodeConfig" AS ?server_name) BIND("ocel_accumulator" AS ?module_name) }
+    UNION
+    { BIND("ClaudeCodeConfig" AS ?server_name) BIND("schema" AS ?module_name) }
+    UNION
+    { BIND("ClaudeCodeConfig" AS ?server_name) BIND("semantic_tokens" AS ?module_name) }
+    UNION
+    { BIND("ClaudeCodeConfig" AS ?server_name) BIND("virtual_docs" AS ?module_name) }
+    UNION
+    { BIND("ClaudeCodeConfig" AS ?server_name) BIND("analyzers" AS ?module_name) }
+}

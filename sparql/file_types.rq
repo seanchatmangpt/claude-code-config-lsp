@@ -1,0 +1,9 @@
+PREFIX ccc: <https://claude-code-config-lsp.rs/ontology/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?extension ?server_id WHERE {
+    ?surface a ccc:ConfigSurface ;
+        ccc:filePattern ?extension ;
+        ccc:languageId ?server_id .
+}
+ORDER BY ?extension

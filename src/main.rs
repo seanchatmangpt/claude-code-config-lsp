@@ -2,13 +2,14 @@
 //! CANDIDATE: receipt chain OPEN
 
 use lsp_max::Server;
-use claude_code_config::Backend;
+use claude_code_config_lsp::Backend;
 
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt().init();
-    let (service, socket) = lsp_max::LspService::new(|client| Backend::new(client));
+    let (service, socket) = lsp_max::LspService::new(Backend::new);
     Server::new(tokio::io::stdin(), tokio::io::stdout(), socket)
         .serve(service)
-        .await;
+        .await
+        .expect("server error");
 }

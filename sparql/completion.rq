@@ -1,0 +1,5 @@
+SELECT ?method_name ?snake_method ?law_status WHERE {
+    BIND("textDocument/completion" AS ?method_name)
+    BIND("completion" AS ?snake_method)
+    BIND("CANDIDATE" AS ?law_status)
+}
