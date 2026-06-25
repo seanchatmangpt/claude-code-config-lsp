@@ -94,7 +94,7 @@ impl TomlAnalyzer {
     pub fn new() -> Self {
         Self {
             version: format!("toml-rvd-{}", env!("CARGO_PKG_VERSION")),
-            rules: vec![],
+            rules: toml_calver_rules(),
         }
     }
 
@@ -149,4 +149,32 @@ mod tests {
         assert_eq!(findings.len(), 2);
         assert!(findings[0].span.0 < findings[1].span.0);
     }
+
+    #[test] fn semver_in_version_detected() { let i = "version = \"1.0.0\""; assert!(TomlAnalyzer::new().analyze(i).iter().any(|f| f.code == "CCC-TOML-001")); }
+    #[test] fn calver_version_is_clean() { let i = "version = \"26.6.25\""; assert!(TomlAnalyzer::new().analyze(i).is_empty()); }
+    #[test] fn edition_2015_flagged() { let i = "edition = \"2015\""; assert!(TomlAnalyzer::new().analyze(i).iter().any(|f| f.code == "CCC-TOML-002")); }
+    #[test] fn edition_2021_clean() { let i = "edition = \"2021\""; assert!(TomlAnalyzer::new().analyze(i).is_empty()); }
+}
+
+// ── Hand-coded: TOML manifest validation ─────────────────────────────────────
+// Source: lsp-max CalVer mandate — SemVer versions are forbidden in this workspace
+
+/// Rules for TOML file validation.
+pub fn toml_calver_rules() -> Vec<Rule> {
+    vec![
+        // CCC-TOML-001: SemVer-shaped version (0.x.x, 1.x.x, 2.x.x, etc.) where CalVer is required
+        // CalVer uses YY.M.D format (e.g. 26.6.25); SemVer starts with 0–9 but year must be ≥ 20
+        // Simple heuristic: version = "0.x.x" or "1.x.x" or "2.x.x" → SemVer
+        Rule::new("CCC-TOML-001", vec![
+            "version = \"0.".to_string(),
+            "version = \"1.".to_string(),
+            "version = \"2.".to_string(),
+            "version = \"3.".to_string(),
+        ], "SemVer version detected — this workspace uses CalVer (YY.M.D)"),
+        // CCC-TOML-002: Rust edition 2015 or 2018 (outdated, should be 2021)
+        Rule::new("CCC-TOML-002", vec![
+            "edition = \"2015\"".to_string(),
+            "edition = \"2018\"".to_string(),
+        ], "Outdated Rust edition — use edition = \"2021\""),
+    ]
 }

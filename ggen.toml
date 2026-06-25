@@ -162,11 +162,8 @@ template    = { pack = "lsp-max", output = "templates", file = "analyzers_mod.rs
 output_file = "src/analyzers/mod.rs"
 mode        = "Overwrite"
 
-# ─── Rules: analyzers (one per config surface, dynamic output) ───────────────
-
-[[generation.rules]]
-name        = "analyzers"
-query       = { file = "sparql/config_surfaces.rq" }
-template    = { pack = "lsp-max", output = "templates", file = "analyzer_stub.rs.tera" }
-output_file = "src/analyzers/{{ analyzer_module }}.rs"
-mode        = "Overwrite"
+# ─── Rules: analyzers ────────────────────────────────────────────────────────
+# Analyzer stubs were bootstrapped once via mode=Create on initial ggen sync.
+# The files in src/analyzers/*.rs are now hand-owned — this rule is retired.
+# To add a new analyzer surface: add it to schema/domain.ttl, run ggen sync
+# with the rule temporarily restored, then remove this comment block again.

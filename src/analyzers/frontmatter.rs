@@ -94,7 +94,7 @@ impl FrontmatterAnalyzer {
     pub fn new() -> Self {
         Self {
             version: format!("frontmatter-rvd-{}", env!("CARGO_PKG_VERSION")),
-            rules: vec![],
+            rules: agent_frontmatter_rules(),
         }
     }
 
@@ -123,6 +123,76 @@ impl ReplayableAnalyzer for FrontmatterAnalyzer {
 }
 
 
+// ── Hand-coded: agent definition YAML frontmatter validation ─────────────────
+// Source: Claude Code subagent spec — required fields and enum constraints
+
+/// Rules for agent definition `.md` frontmatter fields.
+pub fn agent_frontmatter_rules() -> Vec<Rule> {
+    vec![
+        // CCC-AGENT-001: invalid model tier (only opus/sonnet/haiku family accepted)
+        Rule::new("CCC-AGENT-002", vec!["model: claude".to_string()], "Use model tier alias not full model ID"),
+        // CCC-AGENT-003: permissionMode must be one of the three valid values
+        Rule::new("CCC-AGENT-003", vec!["permissionMode: BYPASS".to_string()], "permissionMode BYPASS is not a valid tier"),
+    ]
+}
+
+/// Validate an agent definition `.md` file's frontmatter for structural invariants.
+pub fn validate_agent_frontmatter(content: &str) -> Vec<RawFinding> {
+    let mut findings = Vec::new();
+    let Some(fm) = extract_frontmatter(content) else { return findings };
+
+    let mut has_description = false;
+    let mut base_offset = content.find("---").map(|p| p + 3).unwrap_or(0);
+
+    for raw_line in fm.lines() {
+        let line = raw_line.trim();
+        let line_start = base_offset;
+        base_offset += raw_line.len() + 1;
+
+        if line.starts_with("description:") {
+            let val = line.trim_start_matches("description:").trim().trim_matches('"');
+            has_description = !val.is_empty();
+            if val.len() > 1024 {
+                findings.push(RawFinding { code: "CCC-AGENT-005".into(), message: format!("Agent description exceeds 1024 chars ({})", val.len()), span: (line_start, line_start + raw_line.len()) });
+            }
+        }
+
+        if let Some(val) = line.strip_prefix("maxTurns:") {
+            let val = val.trim();
+            if let Ok(n) = val.parse::<u64>() {
+                if n == 0 {
+                    findings.push(RawFinding { code: "CCC-AGENT-004".into(), message: "maxTurns must be >= 1".into(), span: (line_start, line_start + raw_line.len()) });
+                }
+            } else {
+                findings.push(RawFinding { code: "CCC-AGENT-004".into(), message: format!("maxTurns must be a positive integer, got '{val}'"), span: (line_start, line_start + raw_line.len()) });
+            }
+        }
+
+        if let Some(val) = line.strip_prefix("model:") {
+            let val = val.trim();
+            let valid = ["opus", "sonnet", "haiku", "inherit"];
+            if !valid.iter().any(|t| val.contains(t)) {
+                findings.push(RawFinding { code: "CCC-AGENT-002".into(), message: format!("Unknown model tier '{val}' — use opus/sonnet/haiku/inherit"), span: (line_start, line_start + raw_line.len()) });
+            }
+        }
+    }
+
+    if !has_description {
+        findings.push(RawFinding { code: "CCC-AGENT-005".into(), message: "Agent description is missing or empty".into(), span: (0, content.find("---").unwrap_or(0)) });
+    }
+
+    findings.sort_by(|a, b| a.span.0.cmp(&b.span.0).then(a.code.cmp(&b.code)));
+    findings
+}
+
+fn extract_frontmatter(content: &str) -> Option<&str> {
+    let mut parts = content.splitn(3, "---");
+    parts.next()?;
+    let body = parts.next()?;
+    if body.trim().is_empty() { return None; }
+    Some(body)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -149,4 +219,12 @@ mod tests {
         assert_eq!(findings.len(), 2);
         assert!(findings[0].span.0 < findings[1].span.0);
     }
+
+    const VALID_AGENT: &str = "---\nname: my-agent\ndescription: Does useful work.\nmodel: sonnet\nmaxTurns: 20\n---\n";
+    #[test] fn valid_agent_has_no_findings() { assert!(validate_agent_frontmatter(VALID_AGENT).is_empty()); }
+    #[test] fn ccc_agent_004_zero_max_turns() { let i = "---\nname: x\ndescription: y\nmaxTurns: 0\n---\n"; assert!(validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-004")); }
+    #[test] fn ccc_agent_004_non_integer_turns() { let i = "---\nname: x\ndescription: y\nmaxTurns: many\n---\n"; assert!(validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-004")); }
+    #[test] fn ccc_agent_002_unknown_model() { let i = "---\nname: x\ndescription: y\nmodel: gpt-4\n---\n"; assert!(validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-002")); }
+    #[test] fn ccc_agent_005_missing_description() { let i = "---\nname: x\n---\n"; assert!(validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-005")); }
+    #[test] fn haiku_model_is_valid() { let i = "---\nname: x\ndescription: y\nmodel: haiku\nmaxTurns: 5\n---\n"; assert!(!validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-002")); }
 }

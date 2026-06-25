@@ -94,7 +94,7 @@ impl JsonAnalyzer {
     pub fn new() -> Self {
         Self {
             version: format!("json-rvd-{}", env!("CARGO_PKG_VERSION")),
-            rules: vec![],
+            rules: settings_json_rules(),
         }
     }
 
@@ -149,4 +149,34 @@ mod tests {
         assert_eq!(findings.len(), 2);
         assert!(findings[0].span.0 < findings[1].span.0);
     }
+
+    #[test] fn deprecated_key_detected() { let i = r#"{"enabledMcpjsonServers": []}"#; assert!(JsonAnalyzer::new().analyze(i).iter().any(|f| f.code == "CCC-JSON-001")); }
+    #[test] fn camel_case_hooks_detected() { let i = r#"{"hookEvents": {}}"#; assert!(JsonAnalyzer::new().analyze(i).iter().any(|f| f.code == "CCC-JSON-002")); }
+    #[test] fn valid_json_keys_clean() { let i = r#"{"hooks": {}, "mcpServers": {}}"#; assert!(JsonAnalyzer::new().analyze(i).is_empty()); }
+}
+
+// ── Hand-coded: settings.json validation ─────────────────────────────────────
+// Source: Claude Code settings.json schema — detect deprecated/wrong key names
+
+/// Pattern-scan rules for settings.json key violations.
+pub fn settings_json_rules() -> Vec<Rule> {
+    vec![
+        // CCC-JSON-001: deprecated key names from older Claude Code versions
+        Rule::new("CCC-JSON-001", vec![
+            "enabledMcpjsonServers".to_string(),
+            "disabledMcpjsonServers".to_string(),
+            "mcpJsonServers".to_string(),
+        ], "Deprecated settings.json key — use mcpServers"),
+        // CCC-JSON-002: wrong casing for hook event keys in settings.json
+        Rule::new("CCC-JSON-002", vec![
+            "hookEvents".to_string(),
+            "hook_events".to_string(),
+            "pre_tool_use".to_string(),
+            "post_tool_use".to_string(),
+        ], "Wrong hook key format — use hooks.PreToolUse / hooks.PostToolUse"),
+        // CCC-JSON-003: common typo — "permissions" instead of "permissionMode"
+        Rule::new("CCC-JSON-003", vec![
+            "\"permissions\"".to_string(),
+        ], "Unknown key 'permissions' — did you mean permissionMode?"),
+    ]
 }

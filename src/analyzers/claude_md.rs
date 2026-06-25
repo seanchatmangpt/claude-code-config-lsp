@@ -94,7 +94,7 @@ impl ClaudeMdAnalyzer {
     pub fn new() -> Self {
         Self {
             version: format!("claude_md-rvd-{}", env!("CARGO_PKG_VERSION")),
-            rules: vec![],
+            rules: skill_name_rules(),
         }
     }
 
@@ -123,6 +123,65 @@ impl ReplayableAnalyzer for ClaudeMdAnalyzer {
 }
 
 
+// ── Hand-coded section — rules derived from Claude Code Skill spec ────────────
+pub fn extract_frontmatter(content: &str) -> Option<&str> {
+    let mut lines = content.splitn(3, "---");
+    lines.next()?;
+    let body = lines.next()?;
+    if body.trim().is_empty() { return None; }
+    Some(body)
+}
+
+pub fn skill_name_rules() -> Vec<Rule> {
+    vec![
+        Rule::new("CCC-SKILL-003", vec!["anthropic".to_string()], "Skill name contains reserved word"),
+        Rule::new("CCC-SKILL-003", vec!["claude".to_string()], "Skill name contains reserved word"),
+    ]
+}
+
+pub fn validate_skill_frontmatter(content: &str) -> Vec<RawFinding> {
+    let mut findings = Vec::new();
+    let Some(fm) = extract_frontmatter(content) else { return findings };
+    let mut name: Option<&str> = None;
+    let mut description: Option<&str> = None;
+    let mut base_offset = content.find("---").map(|p| p + 3).unwrap_or(0);
+    for raw_line in fm.lines() {
+        let line = raw_line.trim();
+        let line_start = base_offset;
+        base_offset += raw_line.len() + 1;
+        if let Some(val) = line.strip_prefix("name:") {
+            let val = val.trim().trim_matches('"');
+            name = Some(val);
+            if val.len() > 64 {
+                findings.push(RawFinding { code: "CCC-SKILL-001".into(), message: format!("Skill name exceeds 64 chars ({})", val.len()), span: (line_start, line_start + raw_line.len()) });
+            }
+            if val.chars().any(|c| c.is_uppercase()) {
+                findings.push(RawFinding { code: "CCC-SKILL-002".into(), message: "Skill name must be lowercase".into(), span: (line_start, line_start + raw_line.len()) });
+            }
+            let val_lower = val.to_lowercase();
+            for reserved in &["anthropic", "claude"] {
+                if val_lower.contains(reserved) {
+                    findings.push(RawFinding { code: "CCC-SKILL-003".into(), message: format!("Skill name contains reserved word '{reserved}'"), span: (line_start, line_start + raw_line.len()) });
+                }
+            }
+        }
+        if let Some(val) = line.strip_prefix("description:") {
+            let val = val.trim().trim_matches('"');
+            description = Some(val);
+            if val.is_empty() {
+                findings.push(RawFinding { code: "CCC-SKILL-004".into(), message: "Skill description must be non-empty".into(), span: (line_start, line_start + raw_line.len()) });
+            } else if val.len() > 1024 {
+                findings.push(RawFinding { code: "CCC-SKILL-005".into(), message: format!("Skill description exceeds 1024 chars ({})", val.len()), span: (line_start, line_start + raw_line.len()) });
+            }
+        }
+    }
+    if name.is_some() && description.is_none() {
+        findings.push(RawFinding { code: "CCC-SKILL-004".into(), message: "Skill description field is missing".into(), span: (0, content.find("---").unwrap_or(0)) });
+    }
+    findings.sort_by(|a, b| a.span.0.cmp(&b.span.0).then(a.code.cmp(&b.code)));
+    findings
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -149,4 +208,18 @@ mod tests {
         assert_eq!(findings.len(), 2);
         assert!(findings[0].span.0 < findings[1].span.0);
     }
+
+    const VALID_SKILL: &str = "---\nname: my-tool\ndescription: Does something useful.\n---\n";
+    #[test] fn valid_skill_has_no_findings() { assert!(validate_skill_frontmatter(VALID_SKILL).is_empty()); }
+    #[test] fn ccc_skill_001_name_too_long() { let n = "a".repeat(65); let i = format!("---\nname: {n}\ndescription: ok\n---\n"); assert!(validate_skill_frontmatter(&i).iter().any(|x| x.code == "CCC-SKILL-001")); }
+    #[test] fn ccc_skill_002_uppercase_name() { let i = "---\nname: MyTool\ndescription: ok\n---\n"; assert!(validate_skill_frontmatter(i).iter().any(|x| x.code == "CCC-SKILL-002")); }
+    #[test] fn ccc_skill_003_reserved_anthropic() { let i = "---\nname: anthropic-helper\ndescription: ok\n---\n"; assert!(validate_skill_frontmatter(i).iter().any(|x| x.code == "CCC-SKILL-003")); }
+    #[test] fn ccc_skill_003_reserved_claude() { let i = "---\nname: claude-wrapper\ndescription: ok\n---\n"; assert!(validate_skill_frontmatter(i).iter().any(|x| x.code == "CCC-SKILL-003")); }
+    #[test] fn ccc_skill_004_missing_description() { let i = "---\nname: my-tool\n---\n"; assert!(validate_skill_frontmatter(i).iter().any(|x| x.code == "CCC-SKILL-004")); }
+    #[test] fn ccc_skill_004_empty_description() { let i = "---\nname: my-tool\ndescription: \n---\n"; assert!(validate_skill_frontmatter(i).iter().any(|x| x.code == "CCC-SKILL-004")); }
+    #[test] fn ccc_skill_005_description_too_long() { let d = "x".repeat(1025); let i = format!("---\nname: my-tool\ndescription: {d}\n---\n"); assert!(validate_skill_frontmatter(&i).iter().any(|x| x.code == "CCC-SKILL-005")); }
+    #[test] fn multiple_violations_all_reported() { let i = "---\nname: Claude-Tool\n---\n"; let f = validate_skill_frontmatter(i); assert!(f.iter().any(|x| x.code == "CCC-SKILL-002")); assert!(f.iter().any(|x| x.code == "CCC-SKILL-003")); assert!(f.iter().any(|x| x.code == "CCC-SKILL-004")); }
+    #[test] fn no_frontmatter_returns_empty() { assert!(validate_skill_frontmatter("# No frontmatter").is_empty()); }
+    #[test] fn exactly_64_char_name_is_valid() { let n = "a".repeat(64); let i = format!("---\nname: {n}\ndescription: ok\n---\n"); assert!(!validate_skill_frontmatter(&i).iter().any(|x| x.code == "CCC-SKILL-001")); }
+    #[test] fn exactly_1024_char_description_is_valid() { let d = "x".repeat(1024); let i = format!("---\nname: my-tool\ndescription: {d}\n---\n"); assert!(!validate_skill_frontmatter(&i).iter().any(|x| x.code == "CCC-SKILL-005")); }
 }

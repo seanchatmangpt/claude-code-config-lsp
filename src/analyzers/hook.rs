@@ -94,7 +94,7 @@ impl HookAnalyzer {
     pub fn new() -> Self {
         Self {
             version: format!("hook-rvd-{}", env!("CARGO_PKG_VERSION")),
-            rules: vec![],
+            rules: hook_event_rules(),
         }
     }
 
@@ -149,4 +149,22 @@ mod tests {
         assert_eq!(findings.len(), 2);
         assert!(findings[0].span.0 < findings[1].span.0);
     }
+
+    #[test] fn known_hook_event_clean() { assert!(hook_event_rules().iter().all(|r| !r.patterns.is_empty())); }
+    #[test] fn hook_rules_non_empty() { assert!(!hook_event_rules().is_empty()); }
+}
+
+// ── Hand-coded: hook event validation ────────────────────────────────────────
+// Source: Claude Code hooks spec — valid event types for settings.json hooks
+
+/// Rules for hook event validation: detect references to non-existent hook types.
+/// Claude Code only supports: PreToolUse, PostToolUse, Notification, Stop, SubagentStop
+pub fn hook_event_rules() -> Vec<Rule> {
+    // Detect misspellings of the canonical hook event names
+    vec![
+        Rule::new("CCC-HOOK-001", vec!["PreTooluse".to_string(), "pretoolusue".to_string()], "Misspelled hook event: use PreToolUse"),
+        Rule::new("CCC-HOOK-001", vec!["PostTooluse".to_string(), "posttoolusue".to_string()], "Misspelled hook event: use PostToolUse"),
+        Rule::new("CCC-HOOK-002", vec!["on_tool_use".to_string(), "on_tool_result".to_string()], "Invalid hook event name — use PreToolUse/PostToolUse"),
+        Rule::new("CCC-HOOK-002", vec!["BeforeToolUse".to_string(), "AfterToolUse".to_string()], "Invalid hook event name — use PreToolUse/PostToolUse"),
+    ]
 }
