@@ -236,6 +236,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ae3f5d315924270530207e2a68396c3cc547f6dca3fbdca317cfb1a51edb593"
 
 [[package]]
+name = "cargo-cicd-core"
+version = "26.6.30"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df00f0bc067221cdce5ce88b789518fdbd7742dbb7a4362b915a2c09cadd4857"
+dependencies = [
+ "serde",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "cc"
 version = "1.2.65"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -351,6 +361,7 @@ version = "26.6.24"
 dependencies = [
  "async-trait",
  "blake3",
+ "cargo-cicd-core",
  "chrono",
  "lsp-max",
  "lsp-types-max",

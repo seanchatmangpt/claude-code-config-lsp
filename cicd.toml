@@ -1,0 +1,4 @@
+[pipeline]
+stages = ["check", "clippy", "test", "build-release"]
+oracle = "wasm4pm"
+evidence-output = ".cicd/ocel.json"

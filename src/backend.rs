@@ -10,6 +10,9 @@ use lsp_max::rule_pack_server::{
 use lsp_max::{Client, LanguageServer};
 use lsp_types_max::*;
 
+#[cfg(feature = "cargo-cicd")]
+use cargo_cicd_core::workspace::WorkspaceSnapshot;
+
 #[allow(unused_imports)]
 use crate::analyzers::claude_md::{
     validate_claude_md, validate_skill_frontmatter, ClaudeMdAnalyzer, RawFinding,
@@ -236,6 +239,37 @@ impl LanguageServer for ClaudeCodeConfigBackend {
     async fn completion(&self, params: CompletionParams) -> lsp_max::jsonrpc::Result<Option<CompletionResponse>> {
         self.emit_ocel_event("CompletionRequested", params.text_document_position.text_document.uri.as_str());
         crate::completion::completion(params).await
+    }
+}
+
+#[cfg(feature = "cargo-cicd")]
+impl ClaudeCodeConfigBackend {
+    /// Handle workspace/executeCommand requests for cicdStatus.
+    /// Captures workspace state snapshot and returns diagnostic information.
+    pub fn handle_cicd_status_command(&self) -> serde_json::Value {
+        // Capture workspace state via WorkspaceSnapshot
+        let current_dir = std::env::current_dir().unwrap_or_default();
+        let snapshot = WorkspaceSnapshot::from_path(&current_dir);
+
+        let status_message = format!(
+            "Workspace State: root={}, dirty={}, untracked_files={}",
+            snapshot.root.display(),
+            snapshot.git_status.dirty,
+            snapshot.git_status.untracked_count
+        );
+
+        // Create diagnostic for CLAUDE.md with the snapshot
+        let diag = Diagnostic {
+            range: Range::default(),
+            severity: Some(DiagnosticSeverity::INFORMATION),
+            code: Some(NumberOrString::String("cicd-status".to_string())),
+            source: Some("claude-code-config-lsp[cicd]".into()),
+            message: status_message,
+            ..Default::default()
+        };
+
+        self.emit_ocel_event("CicdStatusRequested", "claude.md");
+        serde_json::to_value(&diag).unwrap_or(serde_json::Value::Null)
     }
 }
 
