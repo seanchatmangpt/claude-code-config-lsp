@@ -31,3 +31,6 @@ bcinr-logic = { version = "26.6", optional = true }
 [features]
 wasm4pm-compat = ["dep:wasm4pm-compat"]
 bcinr = ["dep:bcinr-logic"]
+
+[dev-dependencies]
+chicago-tdd-tools = { path = "/Users/sac/chicago-tdd-tools", features = ["ocel-generation"] }
