@@ -25,3 +25,7 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 chrono = { version = "0.4", features = ["serde"] }
 blake3 = "1"
+bcinr-logic = { version = "26.6", optional = true }
+
+[features]
+bcinr = ["dep:bcinr-logic"]
