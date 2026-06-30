@@ -25,3 +25,9 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 chrono = { version = "0.4", features = ["serde"] }
 blake3 = "1"
+praxis = { path = "praxis", optional = true }
+praxis-retrofit = { path = "praxis-retrofit", optional = true }
+
+[features]
+default = []
+praxis = ["dep:praxis", "dep:praxis-retrofit"]

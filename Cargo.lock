@@ -354,6 +354,8 @@ dependencies = [
  "chrono",
  "lsp-max",
  "lsp-types-max",
+ "praxis",
+ "praxis-retrofit",
  "serde",
  "serde_json",
  "tokio",
@@ -1761,6 +1763,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "85eae3c4ed2f50dcfe72643da4befc30deadb458a9b590d720cde2f2b1e97da9"
 dependencies = [
  "zerocopy",
+]
+
+[[package]]
+name = "praxis"
+version = "0.1.0"
+dependencies = [
+ "blake3",
+ "chrono",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "praxis-retrofit"
+version = "0.1.0"
+dependencies = [
+ "praxis",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

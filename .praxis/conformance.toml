@@ -1,0 +1,8 @@
+[conformance]
+name = "claude-code-config-lsp"
+requirements = [
+  "lsp-max 26.6+ conformance",
+  "OCEL 2.0 emission enabled",
+  "Declare constraints satisfied",
+  "Analyzer modules all present"
+]
