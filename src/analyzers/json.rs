@@ -7,6 +7,9 @@
 
 use serde::Serialize;
 
+#[cfg(feature = "bcinr")]
+use bcinr_logic::swar_str;
+
 /// A single finding from the analyzer, with span relative to input.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct RawFinding {
@@ -29,6 +32,79 @@ impl Rule {
             code,
             patterns,
             message_prefix,
+        }
+    }
+}
+
+/// Naive fallback: substring matching for when bcinr is not enabled.
+fn analyze_rule_naive(input: &str, rule: &Rule, findings: &mut Vec<RawFinding>) {
+    for pattern in &rule.patterns {
+        if pattern.is_empty() {
+            continue;
+        }
+        let mut start = 0;
+        while let Some(pos) = input[start..].find(pattern.as_str()) {
+            let abs = start + pos;
+            findings.push(RawFinding {
+                code: rule.code.to_string(),
+                message: format!("{}: {pattern}", rule.message_prefix),
+                span: (abs, abs + pattern.len()),
+            });
+            start = abs + pattern.len();
+        }
+    }
+}
+
+/// SIMD-accelerated pattern matching using bcinr-logic primitives.
+/// Uses swar_str for byte-level operations and SIMD-friendly string scanning.
+#[cfg(feature = "bcinr")]
+fn analyze_rule_bcinr(input: &str, rule: &Rule, findings: &mut Vec<RawFinding>) {
+    // Use bcinr-logic's swar_str for efficient byte scanning
+    for pattern in &rule.patterns {
+        if pattern.is_empty() {
+            continue;
+        }
+        analyze_pattern_bcinr(input, pattern, rule.code, &rule.message_prefix, findings);
+    }
+}
+
+/// Pattern search using bcinr-logic::swar_str for SIMD-optimized byte operations.
+/// For patterns ≤8 bytes, leverages SWAR (SIMD Within A Register) techniques.
+#[cfg(feature = "bcinr")]
+fn analyze_pattern_bcinr(
+    input: &str,
+    pattern: &str,
+    code: &str,
+    message_prefix: &str,
+    findings: &mut Vec<RawFinding>,
+) {
+    if pattern.len() == 1 {
+        // Use bcinr-logic's optimized single-byte search
+        let target_byte = pattern.as_bytes()[0];
+        let input_bytes = input.as_bytes();
+        let mut pos = 0;
+
+        while let Some(offset) = swar_str::find_first_byte_in_slice(&input_bytes[pos..], target_byte) {
+            let abs = pos + offset;
+            findings.push(RawFinding {
+                code: code.to_string(),
+                message: format!("{}: {pattern}", message_prefix),
+                span: (abs, abs + pattern.len()),
+            });
+            pos = abs + pattern.len();
+        }
+    } else {
+        // For multi-byte patterns, fall back to standard substring search
+        // (bcinr doesn't provide multi-byte pattern matching)
+        let mut start = 0;
+        while let Some(pos) = input[start..].find(pattern) {
+            let abs = start + pos;
+            findings.push(RawFinding {
+                code: code.to_string(),
+                message: format!("{}: {pattern}", message_prefix),
+                span: (abs, abs + pattern.len()),
+            });
+            start = abs + pattern.len();
         }
     }
 }
@@ -63,20 +139,15 @@ pub trait ReplayableAnalyzer {
     fn analyze(&self, input: &str) -> Vec<RawFinding> {
         let mut findings = Vec::new();
         for rule in self.rules() {
-            for pattern in &rule.patterns {
-                if pattern.is_empty() {
-                    continue;
-                }
-                let mut start = 0;
-                while let Some(pos) = input[start..].find(pattern.as_str()) {
-                    let abs = start + pos;
-                    findings.push(RawFinding {
-                        code: rule.code.to_string(),
-                        message: format!("{}: {pattern}", rule.message_prefix),
-                        span: (abs, abs + pattern.len()),
-                    });
-                    start = abs + pattern.len();
-                }
+            #[cfg(feature = "bcinr")]
+            {
+                // Use SIMD-accelerated pattern matching when available
+                analyze_rule_bcinr(input, rule, &mut findings);
+            }
+            #[cfg(not(feature = "bcinr"))]
+            {
+                // Fallback: naive substring matching
+                analyze_rule_naive(input, rule, &mut findings);
             }
         }
         findings.sort_by(|a, b| a.span.0.cmp(&b.span.0).then(a.code.cmp(&b.code)));

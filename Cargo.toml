@@ -26,6 +26,8 @@ tracing-subscriber = "0.3"
 chrono = { version = "0.4", features = ["serde"] }
 blake3 = "1"
 wasm4pm-compat = { path = "/Users/sac/wasm4pm-compat", optional = true }
+bcinr-logic = { version = "26.6", optional = true }
 
 [features]
 wasm4pm-compat = ["dep:wasm4pm-compat"]
+bcinr = ["dep:bcinr-logic"]
