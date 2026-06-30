@@ -37,6 +37,7 @@ impl Rule {
 }
 
 /// Naive fallback: substring matching for when bcinr is not enabled.
+#[allow(dead_code)]
 fn analyze_rule_naive(input: &str, rule: &Rule, findings: &mut Vec<RawFinding>) {
     for pattern in &rule.patterns {
         if pattern.is_empty() {
@@ -64,7 +65,7 @@ fn analyze_rule_bcinr(input: &str, rule: &Rule, findings: &mut Vec<RawFinding>) 
         if pattern.is_empty() {
             continue;
         }
-        analyze_pattern_bcinr(input, pattern, rule.code, &rule.message_prefix, findings);
+        analyze_pattern_bcinr(input, pattern, rule.code, rule.message_prefix, findings);
     }
 }
 

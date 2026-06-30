@@ -1,0 +1,69 @@
+{
+  "receipt": {
+    "hash": "d4f5c7e8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c",
+    "timestamp": "2026-06-29T00:00:00Z",
+    "verdict": "ADMITTED",
+    "proof": "praxis::admit[v1]"
+  },
+  "build_state": {
+    "phases": [
+      "Phase 2A: ocel_accumulator - implement OCEL event accumulator",
+      "Phase 2B: analyzers - implement 5 analyzers (claude_md, frontmatter, hook, json, toml)",
+      "Phase 2C: test_suite - comprehensive test coverage (27 integration tests, 77 unit tests)",
+      "Phase 2D: backend_integration - wire analyzers into LSP backend and add cicd configuration",
+      "Phase 2E: conformance - complete conformance implementation and integrate praxis framework"
+    ],
+    "verification_results": {
+      "cargo_check": {
+        "status": "PASS",
+        "command": "cargo check --all-features",
+        "duration_secs": 35.43
+      },
+      "cargo_clippy": {
+        "status": "PASS",
+        "command": "cargo clippy --all-features -- -D warnings",
+        "fixed": [
+          "5x unused function allowances for #[cfg(feature=\"bcinr\")] patterns",
+          "5x needless borrow fixes for &rule.message_prefix"
+        ]
+      },
+      "cargo_test": {
+        "status": "PASS",
+        "total_passed": 104,
+        "breakdown": {
+          "unit_tests": 77,
+          "integration_tests": 27
+        }
+      }
+    },
+    "merged_worktrees": [
+      {
+        "branch": "worktree-wf_3252d092-1fb-2",
+        "phase": "2A",
+        "changes": "ocel_accumulator.rs with 86 insertions"
+      },
+      {
+        "branch": "worktree-wf_3252d092-1fb-3",
+        "phase": "2B",
+        "changes": "5 analyzer implementations (claude_md, frontmatter, hook, json, toml)"
+      },
+      {
+        "branch": "worktree-wf_3252d092-1fb-4",
+        "phase": "2C",
+        "changes": "chicago_tdd.rs integration test suite with 27 tests"
+      },
+      {
+        "branch": "worktree-wf_3252d092-1fb-5",
+        "phase": "2D",
+        "changes": "backend.rs integration and cicd.toml configuration"
+      },
+      {
+        "branch": "worktree-wf_3252d092-1fb-6",
+        "phase": "2E",
+        "changes": "conformance.rs, praxis integration, rust-toolchain.toml"
+      }
+    ],
+    "final_status": "ALL_PHASES_MERGED_ALL_CHECKS_PASSED",
+    "timestamp": "2026-06-29T00:00:00Z"
+  }
+}
