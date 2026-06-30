@@ -12,6 +12,11 @@
   "repository": "https://github.com/seanchatmangpt/claude-code-config-lsp",
   "license": "MIT",
   "keywords": ["claude-code", "lsp", "config", "settings", "hooks", "agents", "skills", "marketplace"],
+  "skills": {
+    "validate-config": {
+      "path": "skills/validate-config/SKILL.md"
+    }
+  },
   "lspServers": {
     "claude-code-config": {
       "command": "claude-code-config-lsp",
