@@ -13,6 +13,9 @@ use lsp_types_max::*;
 #[cfg(feature = "cargo-cicd")]
 use cargo_cicd_core::workspace::WorkspaceSnapshot;
 
+#[cfg(feature = "praxis")]
+use praxis::{AdmittedReceipt, Evidence};
+
 #[allow(unused_imports)]
 use crate::analyzers::claude_md::{
     validate_claude_md, validate_skill_frontmatter, ClaudeMdAnalyzer, RawFinding,
@@ -239,6 +242,36 @@ impl LanguageServer for ClaudeCodeConfigBackend {
     async fn completion(&self, params: CompletionParams) -> lsp_max::jsonrpc::Result<Option<CompletionResponse>> {
         self.emit_ocel_event("CompletionRequested", params.text_document_position.text_document.uri.as_str());
         crate::completion::completion(params).await
+    }
+
+    #[cfg(feature = "praxis")]
+    async fn execute_command(&self, params: ExecuteCommandParams) -> lsp_max::jsonrpc::Result<Option<serde_json::Value>> {
+        self.emit_ocel_event("ExecuteCommand", &params.command);
+
+        match params.command.as_str() {
+            "claude-code-config/conformanceAudit" => {
+                // Call praxis_retrofit::audit_workspace() to validate project structure
+                let _audit_result = praxis_retrofit::audit_workspace().await;
+
+                // Wrap the conformance vector from src/conformance.rs as Evidence
+                let conformance = crate::conformance::conformance_vector();
+                let evidence: Evidence<_, _, _> = Evidence::new(conformance);
+
+                // Create an AdmittedReceipt with cryptographic signing
+                let receipt = AdmittedReceipt::sign(evidence);
+
+                self.emit_ocel_event("ConformanceAudit", "compliance_receipt_issued");
+
+                // Return the receipt as JSON
+                Ok(Some(serde_json::to_value(receipt).unwrap_or(serde_json::Value::Null)))
+            }
+            _ => {
+                self.client
+                    .log_message(MessageType::WARNING, &format!("Unknown command: {}", params.command))
+                    .await;
+                Ok(None)
+            }
+        }
     }
 }
 

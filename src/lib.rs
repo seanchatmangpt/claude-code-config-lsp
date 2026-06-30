@@ -21,5 +21,6 @@ pub mod hover;
 
 pub mod analyzers;
 
+pub mod conformance;
 
 pub use backend::ClaudeCodeConfigBackend as Backend;

@@ -28,11 +28,15 @@ blake3 = "1"
 wasm4pm-compat = { path = "/Users/sac/wasm4pm-compat", optional = true }
 bcinr-logic = { version = "26.6", optional = true }
 cargo-cicd-core = { version = "26.6", optional = true }
+praxis = { path = "praxis", optional = true }
+praxis-retrofit = { path = "praxis-retrofit", optional = true }
 
 [features]
+default = []
 wasm4pm-compat = ["dep:wasm4pm-compat"]
 bcinr = ["dep:bcinr-logic"]
 cargo-cicd = ["cargo-cicd-core"]
+praxis = ["dep:praxis", "dep:praxis-retrofit"]
 
 [dev-dependencies]
 chicago-tdd-tools = { path = "/Users/sac/chicago-tdd-tools", features = ["ocel-generation"] }
