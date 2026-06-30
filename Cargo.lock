@@ -25,7 +25,7 @@ dependencies = [
  "thiserror 2.0.18",
  "walkdir",
  "wasm-encoder",
- "wasm4pm-compat",
+ "wasm4pm-compat 26.6.26",
 ]
 
 [[package]]
@@ -361,6 +361,7 @@ dependencies = [
  "tracing-subscriber",
  "tree-sitter",
  "tree-sitter-json",
+ "wasm4pm-compat 26.6.28",
 ]
 
 [[package]]
@@ -1280,7 +1281,7 @@ dependencies = [
  "tree-sitter",
  "url",
  "wasm4pm-cognition",
- "wasm4pm-compat",
+ "wasm4pm-compat 26.6.26",
  "windows-sys 0.52.0",
 ]
 
@@ -1376,7 +1377,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
- "wasm4pm-compat",
+ "wasm4pm-compat 26.6.26",
 ]
 
 [[package]]
@@ -1399,7 +1400,7 @@ dependencies = [
  "thiserror 2.0.18",
  "url",
  "uuid",
- "wasm4pm-compat",
+ "wasm4pm-compat 26.6.26",
 ]
 
 [[package]]
@@ -2937,6 +2938,20 @@ name = "wasm4pm-compat"
 version = "26.6.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81a91889ae6aaadd8e23e86c7a88b2b046b8359abff8e5b2f76aa6056fe625b5"
+dependencies = [
+ "blake3",
+ "chrono",
+ "hashbrown 0.17.1",
+ "quick-xml 0.36.2",
+ "rustc-hash",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "wasm4pm-compat"
+version = "26.6.28"
 dependencies = [
  "blake3",
  "chrono",

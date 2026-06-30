@@ -25,3 +25,7 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 chrono = { version = "0.4", features = ["serde"] }
 blake3 = "1"
+wasm4pm-compat = { path = "/Users/sac/wasm4pm-compat", optional = true }
+
+[features]
+wasm4pm-compat = ["dep:wasm4pm-compat"]

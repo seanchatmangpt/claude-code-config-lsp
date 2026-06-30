@@ -190,6 +190,92 @@ impl OcelAccumulator {
 
         self.event_counter.store(0, Ordering::SeqCst);
     }
+
+    /// Admit the exported OCEL log through wasm4pm-compat.
+    /// Validates the OCEL structure through wasm4pm_compat::LinkedOcel,
+    /// and returns a JSON result confirming admission or describing the refusal.
+    /// Returns the JSON string or an error message if admission fails.
+    #[cfg(feature = "wasm4pm-compat")]
+    pub fn admit_ocel_export(&self) -> Result<String, String> {
+        use wasm4pm_compat::admission::Admit;
+        use wasm4pm_compat::evidence::Evidence;
+        use wasm4pm_compat::ocel::{LinkedOcel, OcelLog, OcelEvent, Object, EventObjectLink};
+
+        let ocel_value = self.export_ocel();
+
+        // Extract events and objects from the JSON value
+        let events_json = ocel_value.get("events")
+            .and_then(|v| v.as_array())
+            .ok_or("Invalid OCEL structure: missing or invalid 'events' array")?;
+
+        let objects_json = ocel_value.get("objects")
+            .and_then(|v| v.as_array())
+            .ok_or("Invalid OCEL structure: missing or invalid 'objects' array")?;
+
+        // Build OcelEvent objects from JSON events
+        let mut events = Vec::new();
+        for event_val in events_json {
+            if let Some(event_map) = event_val.as_object() {
+                if let Some(event_id) = event_map.get("id").and_then(|v| v.as_str()) {
+                    if let Some(event_type) = event_map.get("type").and_then(|v| v.as_str()) {
+                        events.push(OcelEvent::new(event_id, event_type));
+                    }
+                }
+            }
+        }
+
+        // Build Object instances from JSON objects (or use empty if none provided)
+        let mut objects = Vec::new();
+        for obj_val in objects_json {
+            if let Some(obj_map) = obj_val.as_object() {
+                if let Some(obj_id) = obj_map.get("id").and_then(|v| v.as_str()) {
+                    if let Some(obj_type) = obj_map.get("type").and_then(|v| v.as_str()) {
+                        objects.push(Object::new(obj_id, obj_type));
+                    }
+                }
+            }
+        }
+
+        // Build EventObjectLink objects from event relationships
+        let mut e2o_links = Vec::new();
+        for event_val in events_json {
+            if let Some(event_map) = event_val.as_object() {
+                if let Some(event_id) = event_map.get("id").and_then(|v| v.as_str()) {
+                    if let Some(rels) = event_map.get("relationships").and_then(|v| v.as_array()) {
+                        for rel_val in rels {
+                            if let Some(rel_map) = rel_val.as_object() {
+                                if let Some(obj_id) = rel_map.get("objectId").and_then(|v| v.as_str()) {
+                                    e2o_links.push(EventObjectLink::new(event_id, obj_id));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Create the OcelLog and wrap it in Evidence
+        let ocel_log = OcelLog::new(objects, events, e2o_links, [], []);
+        let raw_evidence = Evidence::raw(ocel_log);
+
+        // Attempt to admit the log through LinkedOcel
+        match LinkedOcel::admit(raw_evidence) {
+            Ok(admission) => {
+                // Admission successful — serialize the result
+                let result = serde_json::json!({
+                    "status": "admitted",
+                    "log_events": admission.value.events().len(),
+                    "log_objects": admission.value.objects().len(),
+                });
+                serde_json::to_string(&result)
+                    .map_err(|e| format!("Failed to serialize admission result: {}", e))
+            }
+            Err(refusal) => {
+                // Admission refused — return the refusal reason
+                Err(format!("OCEL admission refused: {:?}", refusal.reason))
+            }
+        }
+    }
 }
 
 impl Default for OcelAccumulator {
