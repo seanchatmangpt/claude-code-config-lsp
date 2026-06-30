@@ -25,18 +25,18 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 chrono = { version = "0.4", features = ["serde"] }
 blake3 = "1"
-wasm4pm-compat = { path = "/Users/sac/wasm4pm-compat", optional = true }
-bcinr-logic = { version = "26.6", optional = true }
+wasm4pm-compat = { version = "26.6", optional = true, features = ["formats", "strict"] }
+bcinr = { version = "26.4", optional = true }
+chicago-tdd-tools = { version = "26.6", optional = true }
 cargo-cicd-core = { version = "26.6", optional = true }
-praxis = { path = "praxis", optional = true }
-praxis-retrofit = { path = "praxis-retrofit", optional = true }
 
 [features]
 default = []
 wasm4pm-compat = ["dep:wasm4pm-compat"]
-bcinr = ["dep:bcinr-logic"]
-cargo-cicd = ["cargo-cicd-core"]
-praxis = ["dep:praxis", "dep:praxis-retrofit"]
+bcinr = ["dep:bcinr"]
+chicago-tdd = ["dep:chicago-tdd-tools"]
+cargo-cicd = ["dep:cargo-cicd-core"]
+all-ecosystem = ["wasm4pm-compat", "bcinr", "chicago-tdd", "cargo-cicd"]
 
 [dev-dependencies]
-chicago-tdd-tools = { path = "/Users/sac/chicago-tdd-tools", features = ["ocel-generation"] }
+chicago-tdd-tools = { version = "26.6", features = ["ocel-generation"] }

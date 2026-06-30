@@ -25,7 +25,7 @@ dependencies = [
  "thiserror 2.0.18",
  "walkdir",
  "wasm-encoder",
- "wasm4pm-compat 26.6.26",
+ "wasm4pm-compat",
 ]
 
 [[package]]
@@ -183,6 +183,36 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 
 [[package]]
+name = "bcinr"
+version = "26.4.22"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c8fa2134f07705399d0ff44d30447305cd1a13c9389298ef2d703805a78769db"
+dependencies = [
+ "bcinr-api",
+ "bcinr-core",
+ "bcinr-logic",
+]
+
+[[package]]
+name = "bcinr-api"
+version = "26.4.22"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a95dd80866783974469ceb0f7593b066ecbdecdf8bc5c772fd055139a2a842bb"
+dependencies = [
+ "bcinr-logic",
+]
+
+[[package]]
+name = "bcinr-core"
+version = "26.4.22"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56c2c16c6d4f7e1f8d6b681159ee1d12c071c5bee6d1610bfc9bffb984c58b32"
+dependencies = [
+ "bcinr-api",
+ "bcinr-logic",
+]
+
+[[package]]
 name = "bcinr-logic"
 version = "26.6.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -269,9 +299,10 @@ checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
 name = "chicago-tdd-tools"
-version = "26.6.30"
+version = "26.6.121"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "71c28192f85de9e12d5abfed7c4cb82ab4fbe5cd52a0d151d252cd6170229660"
 dependencies = [
- "blake3",
  "chicago-tdd-tools-proc-macros",
  "chrono",
  "dashmap",
@@ -287,12 +318,14 @@ dependencies = [
  "toml",
  "tracing",
  "uuid",
- "wasm4pm-compat 26.6.26",
+ "wasm4pm-compat",
 ]
 
 [[package]]
 name = "chicago-tdd-tools-proc-macros"
-version = "26.6.30"
+version = "26.6.121"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b924dfbfd54a6fe85b4ac8bc2031d7bee0217377deaf538e4964cb0c5105177"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -398,15 +431,13 @@ name = "claude-code-config-lsp"
 version = "26.6.24"
 dependencies = [
  "async-trait",
- "bcinr-logic",
+ "bcinr",
  "blake3",
  "cargo-cicd-core",
  "chicago-tdd-tools",
  "chrono",
  "lsp-max",
  "lsp-types-max",
- "praxis",
- "praxis-retrofit",
  "serde",
  "serde_json",
  "tokio",
@@ -414,7 +445,7 @@ dependencies = [
  "tracing-subscriber",
  "tree-sitter",
  "tree-sitter-json",
- "wasm4pm-compat 26.6.28",
+ "wasm4pm-compat",
 ]
 
 [[package]]
@@ -1346,7 +1377,7 @@ dependencies = [
  "tree-sitter",
  "url",
  "wasm4pm-cognition",
- "wasm4pm-compat 26.6.26",
+ "wasm4pm-compat",
  "windows-sys 0.52.0",
 ]
 
@@ -1442,7 +1473,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
- "wasm4pm-compat 26.6.26",
+ "wasm4pm-compat",
 ]
 
 [[package]]
@@ -1465,7 +1496,7 @@ dependencies = [
  "thiserror 2.0.18",
  "url",
  "uuid",
- "wasm4pm-compat 26.6.26",
+ "wasm4pm-compat",
 ]
 
 [[package]]
@@ -1827,26 +1858,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "85eae3c4ed2f50dcfe72643da4befc30deadb458a9b590d720cde2f2b1e97da9"
 dependencies = [
  "zerocopy",
-]
-
-[[package]]
-name = "praxis"
-version = "0.1.0"
-dependencies = [
- "blake3",
- "chrono",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "praxis-retrofit"
-version = "0.1.0"
-dependencies = [
- "praxis",
- "serde",
- "serde_json",
- "tokio",
 ]
 
 [[package]]
@@ -3023,20 +3034,6 @@ name = "wasm4pm-compat"
 version = "26.6.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81a91889ae6aaadd8e23e86c7a88b2b046b8359abff8e5b2f76aa6056fe625b5"
-dependencies = [
- "blake3",
- "chrono",
- "hashbrown 0.17.1",
- "quick-xml 0.36.2",
- "rustc-hash",
- "serde",
- "serde_json",
- "uuid",
-]
-
-[[package]]
-name = "wasm4pm-compat"
-version = "26.6.28"
 dependencies = [
  "blake3",
  "chrono",
