@@ -67,9 +67,6 @@ const T_STRING: u32 = 4;
 
 const T_VARIABLE: u32 = 5;
 
-#[allow(dead_code)]
-const T_VARIABLE_FALLBACK: u32 = 0;
-
 /// The legend advertised in `SemanticTokensOptions`.
 pub fn legend() -> SemanticTokensLegend {
     SemanticTokensLegend {
@@ -86,7 +83,7 @@ fn classify(node: &tree_sitter::Node) -> Option<u32> {
     // domain-specific parent_kind mappings from the ontology.
     // For now, all identifiers default to variable classification.
     if node.kind() == "identifier" {
-        return Some(T_VARIABLE_FALLBACK);
+        return token_type_for("variable");
     }
     token_type_for(node.kind())
 }
@@ -218,6 +215,18 @@ mod witness {
                 "token_type index escapes the advertised legend"
             );
         }
+    }
+
+    #[test]
+    fn identifier_fallback_classifies_as_variable_not_enum_member() {
+        // Regression test: `classify()` used to return a stray
+        // `T_VARIABLE_FALLBACK = 0` constant for plain identifiers, which
+        // aliased legend index 0 ("enumMember") instead of the intended
+        // "variable" entry. It now looks the name up through the same
+        // `token_type_for` table every other kind uses, so it can't drift
+        // from the legend again.
+        assert_eq!(token_type_for("variable"), Some(T_VARIABLE));
+        assert_ne!(token_type_for("variable"), Some(T_ENUMMEMBER));
     }
 
     #[test]
