@@ -1,0 +1,37 @@
+{
+  "lspServers": [
+    {
+      "name": "claude-code-config-lsp",
+      "command": "claude-code-config-lsp",
+      "args": [],
+      "extensionToLanguage": {
+        ".json": "claude-code-config",
+        ".md": "claude-code-config"
+      },
+      "startupTimeout": 5000
+    }
+  ],
+  "permissions": {
+    "defaultMode": "default",
+    "additionalDirectories": []
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/hooks/session-start.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "worktree": {
+    "baseRef": "fresh"
+  },
+  "cleanupPeriodDays": 30,
+  "skillOverrides": "off",
+  "parentSettingsBehavior": "merge"
+}

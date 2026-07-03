@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "ggen-docs": {
+      "command": "npx",
+      "args": ["-y", "@ggen/mcp-docs-server"],
+      "type": "stdio"
+    }
+  }
+}
