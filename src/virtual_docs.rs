@@ -4,11 +4,25 @@
 //! Virtual documents are computed on-demand and never mutate files.
 //! Status: CANDIDATE — receipt chain OPEN
 
+use crate::coverage::CoverageReport;
+
 /// Render the `claude-config://health` virtual document content.
 pub fn render() -> String {
-    "# Claude Code Config Health Report\n\n*Virtual document — read-only. Rendered from live server state.*\n\n\
-     ## Status\n\nServer: ClaudeCodeConfig\n\n\
-     *Status: CANDIDATE — receipt chain OPEN*\n".to_string()
+    render_with_coverage(&crate::coverage::coverage_report())
+}
+
+/// Render `claude-config://health`, interpolating a given [`CoverageReport`].
+/// Split out from [`render`] so callers holding a live coverage snapshot
+/// (e.g. computed alongside a `RulePackSnapshot`) can pass it in directly.
+pub fn render_with_coverage(coverage: &CoverageReport) -> String {
+    format!(
+        "# Claude Code Config Health Report\n\n\
+         *Virtual document — read-only. Rendered from live server state.*\n\n\
+         ## Status\n\nServer: ClaudeCodeConfig\n\n\
+         {}\n\
+         *Status: CANDIDATE — receipt chain OPEN*\n",
+        coverage.render_markdown()
+    )
 }
 
 /// Returns true if the given URI belongs to this virtual document.

@@ -23,4 +23,6 @@ pub mod analyzers;
 
 pub mod conformance;
 
+pub mod coverage;
+
 pub use backend::ClaudeCodeConfigBackend as Backend;

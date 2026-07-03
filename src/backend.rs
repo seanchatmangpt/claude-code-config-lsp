@@ -5,7 +5,8 @@
 use lsp_max::ast::AutoLspAdapter;
 use lsp_max::max_protocol::{LawAxis, MaxDiagnostic};
 use lsp_max::rule_pack_server::{
-    ClassifiedFindings, Finding, RulePackServer, ValidatedRulePackSet, WorkspaceIndex,
+    ClassifiedFindings, CrossFileRule, Finding, RulePackServer, RulePackSnapshot,
+    ValidatedRulePackSet, WorkspaceIndex,
 };
 use lsp_max::{Client, LanguageServer};
 use lsp_types_max::*;
@@ -33,6 +34,18 @@ use crate::analyzers::json::{
 use crate::analyzers::toml::{TomlAnalyzer, ReplayableAnalyzer as TomlReplayable};
 use crate::ocel_accumulator::{AccumulatedEvent, OcelAccumulator, OcelRelationship};
 
+/// The three layers a config file (agents, skills, etc.) can resolve from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AgentScope {
+    /// `~/.claude/...` — applies across all of the user's projects.
+    Global,
+    /// The current project's `.claude/...`.
+    Project,
+    /// Installed under a plugin's cache (`~/.claude/plugins/cache/...`),
+    /// contributed via that plugin's manifest.
+    Plugin,
+}
+
 pub struct ClaudeCodeConfigBackend {
     client: Client,
     index: WorkspaceIndex,
@@ -41,6 +54,31 @@ pub struct ClaudeCodeConfigBackend {
     accumulator: OcelAccumulator,
     /// Home dir prefix for global-vs-project scope detection.
     home_dir: Option<String>,
+    /// Cross-file rules evaluated by lsp-max's `WorkspaceRuleEvaluator` over
+    /// this project's `WorkspaceIndex` of currently-open documents.
+    cross_file_rules: Vec<CrossFileRule>,
+}
+
+/// The cross-file rules this server enforces. Built once at construction
+/// time since `CrossFileRule` owns `String` fields.
+fn build_cross_file_rules() -> Vec<CrossFileRule> {
+    vec![CrossFileRule {
+        id: "CCC-XFILE-001".to_string(),
+        name: "Hook script referenced in settings.json must be a real shell script".to_string(),
+        severity: "warning".to_string(),
+        // Any open settings*.json referencing a hooks/*.sh path...
+        source_glob: "**/settings*.json".to_string(),
+        source_pattern: r#"hooks/[\w.-]+\.sh"#.to_string(),
+        // ...must be backed by at least one open hook script with a shebang line.
+        target_glob: "**/hooks/*.sh".to_string(),
+        target_pattern: r"^#!".to_string(),
+        message: "settings.json references a hooks/*.sh path, but no open hook script \
+                  with a shebang line was found in the workspace index."
+            .to_string(),
+        rationale: "A hook wired in settings.json that doesn't resolve to a real, \
+                     executable-looking shell script silently no-ops at runtime."
+            .to_string(),
+    }]
 }
 
 impl ClaudeCodeConfigBackend {
@@ -53,18 +91,33 @@ impl ClaudeCodeConfigBackend {
             packs: ValidatedRulePackSet::empty(),
             accumulator: OcelAccumulator::new(),
             home_dir,
+            cross_file_rules: build_cross_file_rules(),
         }
     }
 
-    /// Returns true if the URI resolves to the user's global ~/.claude/ directory.
-    fn is_global_scope(&self, uri: &str) -> bool {
+    /// A lock-free snapshot of the current workspace index + active rule
+    /// packs, suitable for holding across an `await` point (e.g. while
+    /// evaluating cross-file rules or answering a `max/health`-style query)
+    /// without blocking concurrent `did_change` notifications.
+    fn rule_pack_snapshot(&self) -> RulePackSnapshot {
+        self.index.snapshot(std::sync::Arc::new(self.packs.packs().to_vec()))
+    }
+
+    /// Which of the three layers a config file resolves from: the user's
+    /// global `~/.claude/`, a plugin's installed cache, or the current
+    /// project.
+    fn agent_scope(&self, uri: &str) -> AgentScope {
+        let path = uri.strip_prefix("file://").unwrap_or(uri);
+        if path.contains("/.claude/plugins/") {
+            return AgentScope::Plugin;
+        }
         if let Some(home) = &self.home_dir {
             let home_claude = format!("{home}/.claude/");
-            // Strip file:// scheme for comparison
-            let path = uri.strip_prefix("file://").unwrap_or(uri);
-            return path.starts_with(&home_claude);
+            if path.starts_with(&home_claude) {
+                return AgentScope::Global;
+            }
         }
-        false
+        AgentScope::Project
     }
 
     /// Classify a URI to determine which analyzer(s) to run.
@@ -76,9 +129,9 @@ impl ClaudeCodeConfigBackend {
             "claude_md"
         } else if u.contains("/agents/") && u.ends_with(".md") {
             "agent"
-        } else if u.ends_with("settings.json") || u.ends_with("mcp.json")
-            || u.ends_with("plugin.json") || u.ends_with("marketplace.json")
-            || u.ends_with("keybindings.json")
+        } else if u.ends_with("settings.json") || u.ends_with("settings.local.json")
+            || u.ends_with("mcp.json") || u.ends_with("plugin.json")
+            || u.ends_with("marketplace.json") || u.ends_with("keybindings.json")
         {
             "json"
         } else if u.ends_with(".toml") {
@@ -90,8 +143,12 @@ impl ClaudeCodeConfigBackend {
         }
     }
 
-    fn make_finding_scoped(code: &str, message: &str, category: &str, global: bool) -> Finding {
-        let source = if global { "claude-code-config-lsp[global]" } else { "claude-code-config-lsp" };
+    fn make_finding_scoped(code: &str, message: &str, category: &str, scope: AgentScope) -> Finding {
+        let source = match scope {
+            AgentScope::Global => "claude-code-config-lsp[global]",
+            AgentScope::Plugin => "claude-code-config-lsp[plugin]",
+            AgentScope::Project => "claude-code-config-lsp",
+        };
         make_finding_with_source(code, message, category, source)
     }
 
@@ -136,19 +193,35 @@ impl RulePackServer for ClaudeCodeConfigBackend {
     fn client(&self) -> &Client { &self.client }
     fn adapter(&self) -> &AutoLspAdapter { &self.adapter }
     fn workspace_index(&self) -> Option<&WorkspaceIndex> { Some(&self.index) }
+    fn cross_file_rules(&self) -> &[CrossFileRule] { &self.cross_file_rules }
 
+    // NOTE: this override reimplements scanning from scratch (it does not
+    // call through to `RulePackServer`'s default `scan_uri_classified`), so
+    // the trait's dynamic `EvalBudget` Sync<->Background reclassification
+    // (driven by `latency_trackers()`/`rule_circuit_breaker()`) does not
+    // apply to this project's analyzer dispatch below. All findings here are
+    // always evaluated synchronously. If per-rule latency-based
+    // reclassification is needed later, refactor this to call the trait
+    // default and post-process its `ClassifiedFindings` instead of
+    // reimplementing dispatch — do not attempt to port the reclassification
+    // logic by hand.
     fn scan_uri_classified(&self, uri: &Url, content: &str) -> ClassifiedFindings {
         let uri_str = uri.as_str();
         let kind = Self::classify_uri(uri_str);
-        let global = self.is_global_scope(uri_str);
+        let global = self.agent_scope(uri_str);
         let mut sync: Vec<Finding> = Vec::new();
 
         match kind {
             "skill" => {
+                // NOTE: intentionally NOT running ClaudeMdAnalyzer's
+                // skill_name_rules() here — it scans the whole file for the
+                // literal substrings "claude"/"anthropic" (not just the
+                // `name:` field), so any skill whose description or body
+                // legitimately mentions Claude Code (e.g. this project's own
+                // `claude-config://` scheme) gets falsely flagged as if its
+                // *name* contained a reserved word. validate_skill_frontmatter
+                // above already does the correct, name-field-scoped check.
                 for raw in validate_skill_frontmatter(content) {
-                    sync.push(Self::make_finding_scoped(&raw.code, &raw.message, "skill", global));
-                }
-                for raw in ClaudeMdReplayable::analyze(&ClaudeMdAnalyzer::new(), content) {
                     sync.push(Self::make_finding_scoped(&raw.code, &raw.message, "skill", global));
                 }
             }
@@ -172,7 +245,8 @@ impl RulePackServer for ClaudeCodeConfigBackend {
                 for raw in JsonReplayable::analyze(&JsonAnalyzer::new(), content) {
                     sync.push(Self::make_finding_scoped(&raw.code, &raw.message, "json", global));
                 }
-                if uri_str.to_lowercase().ends_with("settings.json") {
+                let lower_uri = uri_str.to_lowercase();
+                if lower_uri.ends_with("settings.json") || lower_uri.ends_with("settings.local.json") {
                     for raw in validate_settings_json_enums(content) {
                         sync.push(Self::make_finding_scoped(&raw.code, &raw.message, "json", global));
                     }
@@ -242,6 +316,26 @@ impl LanguageServer for ClaudeCodeConfigBackend {
     async fn completion(&self, params: CompletionParams) -> lsp_max::jsonrpc::Result<Option<CompletionResponse>> {
         self.emit_ocel_event("CompletionRequested", params.text_document_position.text_document.uri.as_str());
         crate::completion::completion(params).await
+    }
+
+    /// Serves this server's `claude-config://` virtual documents (currently
+    /// `claude-config://health`), interpolating a coverage report computed
+    /// from a lock-free `RulePackSnapshot` alongside the number of documents
+    /// currently held in the workspace index.
+    async fn text_document_content(
+        &self,
+        params: lsp_max::max_protocol::lsp_3_18::TextDocumentContentParams,
+    ) -> lsp_max::jsonrpc::Result<lsp_max::max_protocol::lsp_3_18::TextDocumentContentResult> {
+        let uri = params.text_document.uri.as_str();
+        if !crate::virtual_docs::is_virtual_doc_uri(uri) {
+            return Err(lsp_max::jsonrpc::Error::method_not_found());
+        }
+        self.emit_ocel_event("VirtualDocumentRequested", uri);
+        let snapshot = self.rule_pack_snapshot();
+        let open_docs = snapshot.index.len();
+        let mut text = crate::virtual_docs::render();
+        text.push_str(&format!("\nOpen documents indexed: {open_docs}\n"));
+        Ok(lsp_max::max_protocol::lsp_3_18::TextDocumentContentResult { text })
     }
 
     #[cfg(feature = "praxis")]
@@ -321,3 +415,57 @@ impl ClaudeCodeConfigBackend {
 // CANDIDATE: textDocument/semanticTokens/full
 
 // CANDIDATE: workspace/textDocumentContent
+
+#[cfg(test)]
+mod andon_diagnostic_tests {
+    use super::*;
+
+    /// lsp-max 26.7.1's `Client::publish_diagnostics` auto-injects a synthetic
+    /// `LSPMAX-ANDON-PUSH-MISSING` diagnostic whenever a batch contains an
+    /// ERROR-severity diagnostic whose `source` isn't `"lsp-max-andon"`
+    /// (see ~/lsp-max/src/service/client/lsp_methods.rs). This project's own
+    /// findings are always emitted at WARNING severity today
+    /// (`make_finding_with_source`), so the injection never fires in
+    /// practice. This test pins that behavior down: if severity mapping is
+    /// ever changed to honor `ccc:diagSeverity "error"` from the ontology,
+    /// this test breaks as a deliberate signal to re-run the ANDON-injection
+    /// verification described in docs/v26.7.3-PRD-ARD.md before shipping.
+    #[test]
+    fn findings_never_emit_error_severity_today() {
+        let (_max, diag) = make_finding_with_source("CCC-TEST-001", "test message", "json", "claude-code-config-lsp");
+        assert_ne!(
+            diag.severity,
+            Some(DiagnosticSeverity::ERROR),
+            "a finding now emits ERROR severity — this will trigger lsp-max's \
+             LSPMAX-ANDON-PUSH-MISSING auto-diagnostic on every publish unless \
+             `source` is set to \"lsp-max-andon\" (it should not be spoofed) or \
+             a real ANDON push is wired for this code path"
+        );
+    }
+
+    #[test]
+    fn scoped_findings_never_emit_error_severity_today() {
+        for scope in [AgentScope::Project, AgentScope::Global, AgentScope::Plugin] {
+            let (_max, diag) = ClaudeCodeConfigBackend::make_finding_scoped(
+                "CCC-TEST-002",
+                "test message",
+                "claude_md",
+                scope,
+            );
+            assert_ne!(diag.severity, Some(DiagnosticSeverity::ERROR));
+        }
+    }
+
+    // Found via dogfooding: settings.local.json didn't match
+    // ends_with("settings.json"), so it silently skipped both
+    // classification and enum validation entirely.
+    #[test]
+    fn settings_local_json_classifies_as_json() {
+        assert_eq!(ClaudeCodeConfigBackend::classify_uri("file:///proj/.claude/settings.local.json"), "json");
+    }
+
+    #[test]
+    fn settings_json_still_classifies_as_json() {
+        assert_eq!(ClaudeCodeConfigBackend::classify_uri("file:///proj/.claude/settings.json"), "json");
+    }
+}

@@ -239,6 +239,31 @@ mod tests {
     #[test] fn plugin_missing_schema_fires_ccc_json_007() { let i = r#"{"name": "my-plugin"}"#; assert!(validate_plugin_json(i).iter().any(|f| f.code == "CCC-JSON-007")); }
     #[test] fn plugin_with_schema_clean() { let i = r#"{"$schema": "https://example.com/schema.json", "name": "x"}"#; assert!(validate_plugin_json(i).is_empty()); }
     #[test] fn invalid_json_returns_empty() { assert!(validate_settings_json_enums("not json").is_empty()); }
+
+    // Phase A: expanded hook events / new enum fields
+    #[test] fn setup_hook_event_is_valid() { let i = r#"{"hooks": {"Setup": []}}"#; assert!(!validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-HOOK-001")); }
+    #[test] fn teammate_idle_hook_event_is_valid() { let i = r#"{"hooks": {"TeammateIdle": []}}"#; assert!(!validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-HOOK-001")); }
+    #[test] fn invalid_hook_type_fires_ccc_hook_004() {
+        let i = r#"{"hooks": {"PreToolUse": [{"hooks": [{"type": "bogus", "command": "x"}]}]}}"#;
+        assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-HOOK-004"));
+    }
+    #[test] fn valid_hook_type_command_clean() {
+        let i = r#"{"hooks": {"PreToolUse": [{"hooks": [{"type": "command", "command": "x"}]}]}}"#;
+        assert!(!validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-HOOK-004"));
+    }
+    #[test] fn invalid_worktree_base_ref_fires_ccc_json_008() { let i = r#"{"worktree": {"baseRef": "bogus"}}"#; assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-008")); }
+    #[test] fn valid_worktree_base_ref_head_clean() { let i = r#"{"worktree": {"baseRef": "head"}}"#; assert!(!validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-008")); }
+    #[test] fn invalid_skill_overrides_fires_ccc_json_009() { let i = r#"{"skillOverrides": "bogus"}"#; assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-009")); }
+    #[test] fn invalid_parent_settings_behavior_fires_ccc_json_010() { let i = r#"{"parentSettingsBehavior": "bogus"}"#; assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-010")); }
+    #[test] fn invalid_mcp_server_type_fires_ccc_json_011() { let i = r#"{"mcpServers": {"foo": {"type": "bogus"}}}"#; assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-011")); }
+    #[test] fn valid_mcp_server_type_sse_clean() { let i = r#"{"mcpServers": {"foo": {"type": "sse"}}}"#; assert!(!validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-011")); }
+    #[test] fn cleanup_period_days_zero_fires_ccc_json_012() { let i = r#"{"cleanupPeriodDays": 0}"#; assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-012")); }
+    #[test] fn cleanup_period_days_thirty_clean() { let i = r#"{"cleanupPeriodDays": 30}"#; assert!(!validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-012")); }
+
+    // Phase D: plugin.json experimental-nesting check
+    #[test] fn top_level_themes_fires_ccc_json_013() { let i = r#"{"$schema": "x", "themes": {}}"#; assert!(validate_plugin_json(i).iter().any(|f| f.code == "CCC-JSON-013")); }
+    #[test] fn top_level_monitors_fires_ccc_json_013() { let i = r#"{"$schema": "x", "monitors": {}}"#; assert!(validate_plugin_json(i).iter().any(|f| f.code == "CCC-JSON-013")); }
+    #[test] fn experimental_nested_themes_clean() { let i = r#"{"$schema": "x", "experimental": {"themes": {}}}"#; assert!(!validate_plugin_json(i).iter().any(|f| f.code == "CCC-JSON-013")); }
 }
 
 // ── Hand-coded: settings.json validation ─────────────────────────────────────
@@ -260,17 +285,32 @@ pub fn settings_json_rules() -> Vec<Rule> {
             "pre_tool_use".to_string(),
             "post_tool_use".to_string(),
         ], "Wrong hook key format — use hooks.PreToolUse / hooks.PostToolUse"),
-        // CCC-JSON-003: common typo — "permissions" instead of "permissionMode"
-        Rule::new("CCC-JSON-003", vec![
-            "\"permissions\"".to_string(),
-        ], "Unknown key 'permissions' — did you mean permissionMode?"),
     ]
 }
 
 /// Valid hook event names in the hooks object.
 const VALID_HOOK_EVENTS: &[&str] = &[
-    "PreToolUse", "PostToolUse", "SessionStart", "Stop", "SubagentStop", "Notification", "FileChanged",
+    "PreToolUse", "PostToolUse", "PostToolUseFailure", "Stop", "StopFailure",
+    "SubagentStart", "SubagentStop", "Notification", "SessionStart", "SessionEnd",
+    "PreCompact", "PostCompact", "UserPromptSubmit", "PermissionRequest", "PermissionDenied",
+    "ConfigChange", "CwdChanged", "FileChanged", "InstructionsLoaded", "MessageDisplay",
+    "TeammateIdle", "TaskCompleted", "TaskCreated", "Setup", "Elicitation", "ElicitationResult",
 ];
+
+/// Valid hook entry `type` values.
+const VALID_HOOK_TYPES: &[&str] = &["command", "prompt", "agent", "http", "mcp_tool"];
+
+/// Valid `worktree.baseRef` values.
+const VALID_WORKTREE_BASE_REFS: &[&str] = &["fresh", "head"];
+
+/// Valid `skillOverrides` values.
+const VALID_SKILL_OVERRIDES: &[&str] = &["off", "user-invocable-only", "name-only"];
+
+/// Valid `parentSettingsBehavior` values.
+const VALID_PARENT_SETTINGS_BEHAVIOR: &[&str] = &["first-wins", "merge"];
+
+/// Valid `mcpServers.<name>.type` values.
+const VALID_MCP_SERVER_TYPES: &[&str] = &["stdio", "sse"];
 
 /// Valid model values for settings.json `model` field.
 const VALID_MODELS: &[&str] = &[
@@ -282,7 +322,9 @@ const VALID_MODELS: &[&str] = &[
 const VALID_EFFORT_LEVELS: &[&str] = &["low", "medium", "high", "xhigh", "max"];
 
 /// Valid permissionMode / defaultMode values.
-const VALID_PERMISSION_MODES: &[&str] = &["auto", "block", "interactive"];
+const VALID_PERMISSION_MODES: &[&str] = &[
+    "default", "manual", "plan", "acceptEdits", "bypassPermissions", "auto",
+];
 
 /// Structural validation of settings.json — checks enum fields and hook event names.
 /// Called alongside pattern rules in the backend's "json" branch.
@@ -320,7 +362,7 @@ pub fn validate_settings_json_enums(content: &str) -> Vec<RawFinding> {
         if !VALID_PERMISSION_MODES.contains(&mode) {
             findings.push(RawFinding {
                 code: "CCC-JSON-006".into(),
-                message: format!("Invalid permissionMode '{mode}' — valid: auto, block, interactive"),
+                message: format!("Invalid permissionMode '{mode}' — valid: {}", VALID_PERMISSION_MODES.join(", ")),
                 span: (0, 0),
             });
         }
@@ -336,7 +378,7 @@ pub fn validate_settings_json_enums(content: &str) -> Vec<RawFinding> {
 
     // CCC-HOOK-001 (structural): hooks object keys must be valid event names
     if let Some(hooks) = obj.get("hooks").and_then(|v| v.as_object()) {
-        for key in hooks.keys() {
+        for (key, entries) in hooks {
             if !VALID_HOOK_EVENTS.contains(&key.as_str()) {
                 findings.push(RawFinding {
                     code: "CCC-HOOK-001".into(),
@@ -344,6 +386,85 @@ pub fn validate_settings_json_enums(content: &str) -> Vec<RawFinding> {
                     span: (0, 0),
                 });
             }
+            // CCC-HOOK-004: each hook entry's `type` must be a valid enum value
+            if let Some(matchers) = entries.as_array() {
+                for matcher in matchers {
+                    if let Some(hook_list) = matcher.get("hooks").and_then(|v| v.as_array()) {
+                        for hook in hook_list {
+                            if let Some(t) = hook.get("type").and_then(|v| v.as_str()) {
+                                if !VALID_HOOK_TYPES.contains(&t) {
+                                    findings.push(RawFinding {
+                                        code: "CCC-HOOK-004".into(),
+                                        message: format!("Invalid hook type '{t}' — valid: {}", VALID_HOOK_TYPES.join(", ")),
+                                        span: (0, 0),
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // CCC-JSON-008: worktree.baseRef enum
+    if let Some(worktree) = obj.get("worktree").and_then(|v| v.as_object()) {
+        if let Some(base_ref) = worktree.get("baseRef").and_then(|v| v.as_str()) {
+            if !VALID_WORKTREE_BASE_REFS.contains(&base_ref) {
+                findings.push(RawFinding {
+                    code: "CCC-JSON-008".into(),
+                    message: format!("Invalid worktree.baseRef '{base_ref}' — valid: {}", VALID_WORKTREE_BASE_REFS.join(", ")),
+                    span: (0, 0),
+                });
+            }
+        }
+    }
+
+    // CCC-JSON-009: skillOverrides enum
+    if let Some(v) = obj.get("skillOverrides").and_then(|v| v.as_str()) {
+        if !VALID_SKILL_OVERRIDES.contains(&v) {
+            findings.push(RawFinding {
+                code: "CCC-JSON-009".into(),
+                message: format!("Invalid skillOverrides '{v}' — valid: {}", VALID_SKILL_OVERRIDES.join(", ")),
+                span: (0, 0),
+            });
+        }
+    }
+
+    // CCC-JSON-010: parentSettingsBehavior enum
+    if let Some(v) = obj.get("parentSettingsBehavior").and_then(|v| v.as_str()) {
+        if !VALID_PARENT_SETTINGS_BEHAVIOR.contains(&v) {
+            findings.push(RawFinding {
+                code: "CCC-JSON-010".into(),
+                message: format!("Invalid parentSettingsBehavior '{v}' — valid: {}", VALID_PARENT_SETTINGS_BEHAVIOR.join(", ")),
+                span: (0, 0),
+            });
+        }
+    }
+
+    // CCC-JSON-011: mcpServers.<name>.type enum
+    if let Some(servers) = obj.get("mcpServers").and_then(|v| v.as_object()) {
+        for (name, server) in servers {
+            if let Some(t) = server.get("type").and_then(|v| v.as_str()) {
+                if !VALID_MCP_SERVER_TYPES.contains(&t) {
+                    findings.push(RawFinding {
+                        code: "CCC-JSON-011".into(),
+                        message: format!("mcpServers.{name}: invalid type '{t}' — valid: {}", VALID_MCP_SERVER_TYPES.join(", ")),
+                        span: (0, 0),
+                    });
+                }
+            }
+        }
+    }
+
+    // CCC-JSON-012: cleanupPeriodDays must not be 0 (silently disables persistence)
+    if let Some(n) = obj.get("cleanupPeriodDays").and_then(|v| v.as_i64()) {
+        if n == 0 {
+            findings.push(RawFinding {
+                code: "CCC-JSON-012".into(),
+                message: "cleanupPeriodDays: 0 silently disables transcript persistence".into(),
+                span: (0, 0),
+            });
         }
     }
 
@@ -362,5 +483,18 @@ pub fn validate_plugin_json(content: &str) -> Vec<RawFinding> {
             span: (0, 0),
         });
     }
+
+    // CCC-JSON-013: `themes`/`monitors` must be nested under `experimental`,
+    // not declared top-level (deprecated per Claude Code 2.1.129+).
+    for key in ["themes", "monitors"] {
+        if obj.contains_key(key) {
+            findings.push(RawFinding {
+                code: "CCC-JSON-013".into(),
+                message: format!("Top-level '{key}' is deprecated — declare it under \"experimental\": {{ \"{key}\": ... }} instead"),
+                span: (0, 0),
+            });
+        }
+    }
+
     findings
 }

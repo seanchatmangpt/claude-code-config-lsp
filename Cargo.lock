@@ -299,10 +299,11 @@ checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
 name = "chicago-tdd-tools"
-version = "26.6.121"
+version = "26.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71c28192f85de9e12d5abfed7c4cb82ab4fbe5cd52a0d151d252cd6170229660"
+checksum = "568a1ea3e883b5726dbad687663231d2e90cef65cfc8d0598346a9db713abc46"
 dependencies = [
+ "blake3",
  "chicago-tdd-tools-proc-macros",
  "chrono",
  "dashmap",
@@ -323,9 +324,9 @@ dependencies = [
 
 [[package]]
 name = "chicago-tdd-tools-proc-macros"
-version = "26.6.121"
+version = "26.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b924dfbfd54a6fe85b4ac8bc2031d7bee0217377deaf538e4964cb0c5105177"
+checksum = "fe617a9430f246b98ba149736d5c8988dc07d662e9dff40031e99b91fa3dde2e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1344,77 +1345,57 @@ checksum = "0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad"
 
 [[package]]
 name = "lsp-max"
-version = "26.6.24"
+version = "26.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c533d482b262a618cdf8293510abd6c104ebc18e0149313e5767dc018e22605"
+checksum = "ff5fea0cfdac7587b754c08d69f6ea5634526661ddf6dd7f32b6e7c5f3018101"
 dependencies = [
  "affidavit",
+ "anyhow",
  "async-trait",
  "auto_impl",
+ "blake3",
  "bytes",
  "dashmap",
+ "ed25519-dalek",
  "futures",
  "httparse",
  "libc",
- "lsp-max-agent",
  "lsp-max-ast",
- "lsp-max-base",
  "lsp-max-lsif",
  "lsp-max-macros",
  "lsp-max-protocol",
- "lsp-max-runtime",
  "lsp-types-max",
  "memchr",
+ "oxigraph",
  "parking_lot",
+ "rand_core 0.6.4",
  "regex",
  "rustc-hash",
  "serde",
  "serde_json",
+ "thiserror 2.0.18",
  "tokio",
  "tokio-util",
  "tower",
  "tracing",
  "tree-sitter",
+ "ureq",
  "url",
+ "uuid",
  "wasm4pm-cognition",
  "wasm4pm-compat",
  "windows-sys 0.52.0",
 ]
 
 [[package]]
-name = "lsp-max-agent"
-version = "26.6.24"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "66504bfac9ecf715ef7c73fb2c225eb5f031739cc234f3cf6c7c1b4d95d1336e"
-dependencies = [
- "lsp-max-protocol",
- "serde",
- "serde_json",
- "ureq",
-]
-
-[[package]]
 name = "lsp-max-ast"
-version = "26.6.24"
+version = "26.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb5e35ad20cc78d2cff25c63955d61d92fa9f3e1f036efae93339a4ed2434a37"
-dependencies = [
- "dashmap",
- "lsp-max-ast-core",
- "lsp-types-max",
- "parking_lot",
- "texter",
- "tree-sitter",
-]
-
-[[package]]
-name = "lsp-max-ast-core"
-version = "26.6.24"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1dba3e11a3e115264c5cac7e244bab1ccdbf60607fc8023aafe9b15a4ccd4cd8"
+checksum = "b800286bd3abb7c1b22f8c0a7c914742ab7acd703948f5bb58d0f97bf1ba7dec"
 dependencies = [
  "anyhow",
  "ariadne",
+ "dashmap",
  "downcast-rs",
  "log",
  "lsp-types-max",
@@ -1428,35 +1409,27 @@ dependencies = [
 ]
 
 [[package]]
-name = "lsp-max-base"
-version = "26.6.24"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3a373f79fbd5483c8d4652c5987a6008be809c60715b436a75f665c0fdbb3811"
-dependencies = [
- "bytes",
- "httparse",
- "memchr",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "lsp-max-lsif"
-version = "26.6.24"
+version = "26.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ea8c8f92a740192ce48eefb800c2b4711d65805a6f2d07c8435c7ab44568495f"
+checksum = "043efa14f760794ab8c0d223b5f600b9c4c2e1f5bb9f15b255568b40a032821f"
 dependencies = [
+ "anyhow",
+ "lsp-max-ast",
  "lsp-types-max",
- "oxigraph",
+ "salsa",
  "serde",
  "serde_json",
+ "tree-sitter",
+ "tree-sitter-rust",
+ "tree-sitter-typescript",
 ]
 
 [[package]]
 name = "lsp-max-macros"
-version = "26.6.24"
+version = "26.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6a3130355acb3a5211da74f49cb3fa08f234f09ad6809c5eeb3f11b7fb21d37"
+checksum = "c921c7f8eaf02d232fbd287725fd1693206f4f54619247be93c3a0372827bf15"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1465,37 +1438,17 @@ dependencies = [
 
 [[package]]
 name = "lsp-max-protocol"
-version = "26.6.24"
+version = "26.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6f3c8093995594e335e19b34e75373e4a21b303ba7f7884b0a18fefd175e8b0"
+checksum = "3c2daa145704e54c1f5ffc70a87fae57706173b71e2169f06c62e6b99278a8df"
 dependencies = [
+ "bytes",
+ "httparse",
  "lsp-types-max",
+ "memchr",
  "serde",
  "serde_json",
  "tokio",
- "wasm4pm-compat",
-]
-
-[[package]]
-name = "lsp-max-runtime"
-version = "26.6.24"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "294b0b40d0b7d3485944c6b84fbbf993ab152b00c8277e563323085ad224a8c4"
-dependencies = [
- "blake3",
- "dashmap",
- "ed25519-dalek",
- "lsp-max-base",
- "lsp-max-lsif",
- "lsp-max-protocol",
- "lsp-types-max",
- "oxigraph",
- "rand_core 0.6.4",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "url",
- "uuid",
  "wasm4pm-compat",
 ]
 
@@ -2805,6 +2758,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "009994f150cc0cd50ff54917d5bc8bffe8cad10ca10d81c34da2ec421ae61782"
 
 [[package]]
+name = "tree-sitter-rust"
+version = "0.23.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca8ccb3e3a3495c8a943f6c3fd24c3804c471fd7f4f16087623c7fa4c0068e8a"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "tree-sitter-typescript"
+version = "0.23.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c5f76ed8d947a75cc446d5fccd8b602ebf0cde64ccf2ffa434d873d7a575eff"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
 name = "typeid"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3031,9 +3004,9 @@ dependencies = [
 
 [[package]]
 name = "wasm4pm-compat"
-version = "26.6.26"
+version = "26.6.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81a91889ae6aaadd8e23e86c7a88b2b046b8359abff8e5b2f76aa6056fe625b5"
+checksum = "983483a7025de6dd425a5262639b060c9b52798aebf7334db15faab7930ab55c"
 dependencies = [
  "blake3",
  "chrono",

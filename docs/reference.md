@@ -94,6 +94,10 @@ Frontmatter is not required in CLAUDE.md or AGENTS.md.
 
 ## Agent frontmatter schema (`.claude/agents/*.md`)
 
+Agents resolve from **three layers**: `~/.claude/agents/` (global, tagged
+`[global]`), `.claude/agents/` (project, untagged), and plugin-provided
+agents installed under `~/.claude/plugins/cache/...` (tagged `[plugin]`).
+
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `name` | string | yes | Identifier; lowercase, hyphens, max 64 chars |
@@ -104,6 +108,14 @@ Frontmatter is not required in CLAUDE.md or AGENTS.md.
 | `tools` | string[] | no | Tool allowlist; defaults to parent's set |
 | `disallowedTools` | string[] | no | Tools explicitly blocked |
 | `isolation` | string | no | `worktree` — agent runs in a git worktree |
+| `permissionMode` | string | no | `default` \| `manual` \| `plan` \| `acceptEdits` \| `bypassPermissions` \| `auto` |
+| `background` | boolean | no | Always run as a background task |
+| `context` | string | no | `fork` — run in a forked sub-agent context |
+| `initialPrompt` | string | no | Auto-submitted as the agent's first turn |
+| `memory.scope` | string | no | `user` \| `project` \| `local` |
+| `hooks.<Event>` | object | no | Agent-scoped hooks; event must be `PreToolUse` \| `PostToolUse` \| `Stop` |
+| `mcpServers` | object | no | Same shape as `mcp.json`'s `mcpServers` |
+| `color` | string | no | Freeform display color |
 
 ---
 
@@ -114,6 +126,11 @@ Frontmatter is not required in CLAUDE.md or AGENTS.md.
 | `name` | string | yes | Identifier; lowercase, hyphens, max 64 chars |
 | `description` | string | yes | Max 1024 chars. States WHAT and WHEN. Used for discovery. |
 | `disable-model-invocation` | boolean | no | Prevents additional model calls from within the Skill |
+| `user-invocable` | boolean | no | Whether the skill appears in `/` autocomplete |
+| `default-enabled` | boolean | no | Whether the skill is enabled by default |
+| `context` | string | no | `fork` — run in a forked sub-agent context |
+| `effort` | string | no | `low` \| `medium` \| `high` \| `xhigh` \| `max` |
+| `argument-hint` | string | no | Non-empty hint shown in the `/` autocomplete |
 
 ---
 

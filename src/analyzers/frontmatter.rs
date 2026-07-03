@@ -208,6 +208,20 @@ pub fn agent_frontmatter_rules() -> Vec<Rule> {
     ]
 }
 
+/// Valid `permissionMode` values (mirrors `permissions.defaultMode` in settings.json).
+const VALID_PERMISSION_MODES: &[&str] = &[
+    "default", "manual", "plan", "acceptEdits", "bypassPermissions", "auto",
+];
+
+/// Valid `memory.scope` values.
+const VALID_MEMORY_SCOPES: &[&str] = &["user", "project", "local"];
+
+/// Valid `context` values (only `fork` is documented today).
+const VALID_CONTEXT_VALUES: &[&str] = &["fork"];
+
+/// Valid hook event names scoped within agent frontmatter's `hooks:` block.
+const VALID_AGENT_HOOK_EVENTS: &[&str] = &["PreToolUse", "PostToolUse", "Stop"];
+
 /// Known valid tool names for agent/skill definitions.
 const VALID_TOOLS: &[&str] = &[
     "Read", "Write", "Edit", "Bash", "Grep", "Glob", "Agent",
@@ -223,12 +237,32 @@ pub fn validate_agent_frontmatter(content: &str) -> Vec<RawFinding> {
     let mut has_description = false;
     let mut has_name = false;
     let mut in_tools_block = false;
+    let mut in_hooks_block = false;
     let mut base_offset = content.find("---").map(|p| p + 3).unwrap_or(0);
 
     for raw_line in fm.lines() {
         let line = raw_line.trim();
         let line_start = base_offset;
         base_offset += raw_line.len() + 1;
+
+        // CCC-AGENT-011: hooks: block sub-keys must be valid hook event names
+        if line.starts_with("hooks:") {
+            in_hooks_block = true;
+        } else if in_hooks_block {
+            // A non-empty, non-indented, non-list-item line is a new
+            // top-level key — it ends the hooks: block even if it also
+            // happens to end in ':' (e.g. a sibling "tools:" key).
+            let is_block_member = line.is_empty() || line.starts_with('-')
+                || raw_line.starts_with(' ') || raw_line.starts_with('\t');
+            if !is_block_member {
+                in_hooks_block = false;
+            } else if let Some(event) = line.strip_suffix(':') {
+                let event = event.trim();
+                if !event.is_empty() && !VALID_AGENT_HOOK_EVENTS.contains(&event) {
+                    findings.push(RawFinding { code: "CCC-AGENT-011".into(), message: format!("Unknown hook event '{event}' in agent hooks — valid: {}", VALID_AGENT_HOOK_EVENTS.join(", ")), span: (line_start, line_start + raw_line.len()) });
+                }
+            }
+        }
 
         if line.starts_with("description:") {
             in_tools_block = false;
@@ -283,6 +317,46 @@ pub fn validate_agent_frontmatter(content: &str) -> Vec<RawFinding> {
             let valid = ["opus", "sonnet", "haiku", "inherit"];
             if !valid.iter().any(|t| val.contains(t)) {
                 findings.push(RawFinding { code: "CCC-AGENT-002".into(), message: format!("Unknown model tier '{val}' — use opus/sonnet/haiku/inherit"), span: (line_start, line_start + raw_line.len()) });
+            }
+        }
+
+        // CCC-AGENT-003 (real enum, supersedes the naive BYPASS-substring rule)
+        if let Some(val) = line.strip_prefix("permissionMode:") {
+            let val = val.trim().trim_matches('"');
+            if !val.is_empty() && !VALID_PERMISSION_MODES.contains(&val) {
+                findings.push(RawFinding { code: "CCC-AGENT-003".into(), message: format!("Unknown permissionMode '{val}' — valid: {}", VALID_PERMISSION_MODES.join(", ")), span: (line_start, line_start + raw_line.len()) });
+            }
+        }
+
+        // CCC-AGENT-007: background must be a YAML boolean, not a string
+        if let Some(val) = line.strip_prefix("background:") {
+            let val = val.trim();
+            if !val.is_empty() && val != "true" && val != "false" {
+                findings.push(RawFinding { code: "CCC-AGENT-007".into(), message: format!("background must be true or false, got '{val}'"), span: (line_start, line_start + raw_line.len()) });
+            }
+        }
+
+        // CCC-AGENT-008: context must be one of the documented values
+        if let Some(val) = line.strip_prefix("context:") {
+            let val = val.trim().trim_matches('"');
+            if !val.is_empty() && !VALID_CONTEXT_VALUES.contains(&val) {
+                findings.push(RawFinding { code: "CCC-AGENT-008".into(), message: format!("Unknown context '{val}' — valid: {}", VALID_CONTEXT_VALUES.join(", ")), span: (line_start, line_start + raw_line.len()) });
+            }
+        }
+
+        // CCC-AGENT-009: initialPrompt must be non-empty if present
+        if let Some(val) = line.strip_prefix("initialPrompt:") {
+            let val = val.trim().trim_matches('"');
+            if val.is_empty() {
+                findings.push(RawFinding { code: "CCC-AGENT-009".into(), message: "initialPrompt is present but empty".into(), span: (line_start, line_start + raw_line.len()) });
+            }
+        }
+
+        // CCC-AGENT-010: memory.scope must be one of user/project/local
+        if let Some(val) = line.trim_start().strip_prefix("scope:") {
+            let val = val.trim().trim_matches('"');
+            if !val.is_empty() && !VALID_MEMORY_SCOPES.contains(&val) {
+                findings.push(RawFinding { code: "CCC-AGENT-010".into(), message: format!("Unknown memory scope '{val}' — valid: {}", VALID_MEMORY_SCOPES.join(", ")), span: (line_start, line_start + raw_line.len()) });
             }
         }
     }
@@ -344,4 +418,17 @@ mod tests {
     #[test] fn ccc_agent_006_unknown_tool() { let i = "---\nname: x\ndescription: y\ntools:\n  - Read\n  - SuperTool\n---\n"; assert!(validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-006")); }
     #[test] fn valid_tools_list_clean() { let i = "---\nname: x\ndescription: y\ntools:\n  - Read\n  - Write\n  - Bash\n---\n"; assert!(!validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-006")); }
     #[test] fn mcp_prefixed_tool_is_valid() { let i = "---\nname: x\ndescription: y\ntools:\n  - mcp__my_server__my_tool\n---\n"; assert!(!validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-006")); }
+
+    // Phase B: new agent frontmatter fields
+    #[test] fn ccc_agent_003_invalid_permission_mode() { let i = "---\nname: x\ndescription: y\npermissionMode: bogus\n---\n"; assert!(validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-003")); }
+    #[test] fn valid_permission_mode_plan_clean() { let i = "---\nname: x\ndescription: y\npermissionMode: plan\n---\n"; assert!(!validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-003")); }
+    #[test] fn ccc_agent_007_background_not_bool() { let i = "---\nname: x\ndescription: y\nbackground: yes-please\n---\n"; assert!(validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-007")); }
+    #[test] fn valid_background_true_clean() { let i = "---\nname: x\ndescription: y\nbackground: true\n---\n"; assert!(!validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-007")); }
+    #[test] fn ccc_agent_008_invalid_context() { let i = "---\nname: x\ndescription: y\ncontext: spawn\n---\n"; assert!(validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-008")); }
+    #[test] fn valid_context_fork_clean() { let i = "---\nname: x\ndescription: y\ncontext: fork\n---\n"; assert!(!validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-008")); }
+    #[test] fn ccc_agent_009_empty_initial_prompt() { let i = "---\nname: x\ndescription: y\ninitialPrompt: \n---\n"; assert!(validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-009")); }
+    #[test] fn ccc_agent_010_invalid_memory_scope() { let i = "---\nname: x\ndescription: y\nmemory:\n  scope: global\n---\n"; assert!(validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-010")); }
+    #[test] fn valid_memory_scope_project_clean() { let i = "---\nname: x\ndescription: y\nmemory:\n  scope: project\n---\n"; assert!(!validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-010")); }
+    #[test] fn ccc_agent_011_unknown_hook_event() { let i = "---\nname: x\ndescription: y\nhooks:\n  BogusEvent:\n    - type: command\n---\n"; assert!(validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-011")); }
+    #[test] fn valid_hook_event_pre_tool_use_clean_in_agent() { let i = "---\nname: x\ndescription: y\nhooks:\n  PreToolUse:\n    - type: command\n---\n"; assert!(!validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-011")); }
 }

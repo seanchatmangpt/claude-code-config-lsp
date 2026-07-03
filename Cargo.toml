@@ -13,7 +13,7 @@ name = "claude_code_config_lsp"
 path = "src/lib.rs"
 
 [dependencies]
-lsp-max = "26.6"
+lsp-max = "26.7.3"
 lsp-types-max = { version = "26.6", features = ["proposed"] }
 tree-sitter = "0.26"
 tree-sitter-json = "0.23"
@@ -27,7 +27,7 @@ chrono = { version = "0.4", features = ["serde"] }
 blake3 = "1"
 wasm4pm-compat = { version = "26.6", optional = true, features = ["formats", "strict"] }
 bcinr = { version = "26.4", optional = true }
-chicago-tdd-tools = { version = "26.6", optional = true }
+chicago-tdd-tools = { version = "26.7", optional = true }
 cargo-cicd-core = { version = "26.6", optional = true }
 
 [features]
@@ -39,4 +39,4 @@ cargo-cicd = ["dep:cargo-cicd-core"]
 all-ecosystem = ["wasm4pm-compat", "bcinr", "chicago-tdd", "cargo-cicd"]
 
 [dev-dependencies]
-chicago-tdd-tools = { version = "26.6", features = ["ocel-generation"] }
+chicago-tdd-tools = { version = "26.7", features = ["ocel-generation"] }

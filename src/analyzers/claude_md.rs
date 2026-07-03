@@ -228,6 +228,12 @@ pub fn skill_name_rules() -> Vec<Rule> {
     ]
 }
 
+/// Valid `context` values for skill frontmatter (only `fork` is documented).
+const VALID_SKILL_CONTEXT_VALUES: &[&str] = &["fork"];
+
+/// Valid `effort` values for skill frontmatter.
+const VALID_SKILL_EFFORT_LEVELS: &[&str] = &["low", "medium", "high", "xhigh", "max"];
+
 pub fn validate_skill_frontmatter(content: &str) -> Vec<RawFinding> {
     let mut findings = Vec::new();
     let Some(fm) = extract_frontmatter(content) else { return findings };
@@ -238,6 +244,46 @@ pub fn validate_skill_frontmatter(content: &str) -> Vec<RawFinding> {
         let line = raw_line.trim();
         let line_start = base_offset;
         base_offset += raw_line.len() + 1;
+
+        // CCC-SKILL-006: user-invocable must be a YAML boolean
+        if let Some(val) = line.strip_prefix("user-invocable:") {
+            let val = val.trim();
+            if !val.is_empty() && val != "true" && val != "false" {
+                findings.push(RawFinding { code: "CCC-SKILL-006".into(), message: format!("user-invocable must be true or false, got '{val}'"), span: (line_start, line_start + raw_line.len()) });
+            }
+        }
+
+        // CCC-SKILL-007: default-enabled must be a YAML boolean
+        if let Some(val) = line.strip_prefix("default-enabled:") {
+            let val = val.trim();
+            if !val.is_empty() && val != "true" && val != "false" {
+                findings.push(RawFinding { code: "CCC-SKILL-007".into(), message: format!("default-enabled must be true or false, got '{val}'"), span: (line_start, line_start + raw_line.len()) });
+            }
+        }
+
+        // CCC-SKILL-008: context must be a documented value
+        if let Some(val) = line.strip_prefix("context:") {
+            let val = val.trim().trim_matches('"');
+            if !val.is_empty() && !VALID_SKILL_CONTEXT_VALUES.contains(&val) {
+                findings.push(RawFinding { code: "CCC-SKILL-008".into(), message: format!("Unknown context '{val}' — valid: {}", VALID_SKILL_CONTEXT_VALUES.join(", ")), span: (line_start, line_start + raw_line.len()) });
+            }
+        }
+
+        // CCC-SKILL-009: effort must be a documented value
+        if let Some(val) = line.strip_prefix("effort:") {
+            let val = val.trim().trim_matches('"');
+            if !val.is_empty() && !VALID_SKILL_EFFORT_LEVELS.contains(&val) {
+                findings.push(RawFinding { code: "CCC-SKILL-009".into(), message: format!("Unknown effort '{val}' — valid: {}", VALID_SKILL_EFFORT_LEVELS.join(", ")), span: (line_start, line_start + raw_line.len()) });
+            }
+        }
+
+        // CCC-SKILL-010: argument-hint must be non-empty if present
+        if let Some(val) = line.strip_prefix("argument-hint:") {
+            let val = val.trim().trim_matches('"');
+            if val.is_empty() {
+                findings.push(RawFinding { code: "CCC-SKILL-010".into(), message: "argument-hint is present but empty".into(), span: (line_start, line_start + raw_line.len()) });
+            }
+        }
         if let Some(val) = line.strip_prefix("name:") {
             let val = val.trim().trim_matches('"');
             name = Some(val);
@@ -315,4 +361,14 @@ mod tests {
     #[test] fn ccc_md_006_valid_h1() { assert!(validate_claude_md("# My Project\n\nContent.").is_empty()); }
     #[test] fn exactly_64_char_name_is_valid() { let n = "a".repeat(64); let i = format!("---\nname: {n}\ndescription: ok\n---\n"); assert!(!validate_skill_frontmatter(&i).iter().any(|x| x.code == "CCC-SKILL-001")); }
     #[test] fn exactly_1024_char_description_is_valid() { let d = "x".repeat(1024); let i = format!("---\nname: my-tool\ndescription: {d}\n---\n"); assert!(!validate_skill_frontmatter(&i).iter().any(|x| x.code == "CCC-SKILL-005")); }
+
+    // Phase C: new skill frontmatter fields
+    #[test] fn ccc_skill_006_user_invocable_not_bool() { let i = "---\nname: x\ndescription: y\nuser-invocable: yes\n---\n"; assert!(validate_skill_frontmatter(i).iter().any(|f| f.code == "CCC-SKILL-006")); }
+    #[test] fn valid_user_invocable_true_clean() { let i = "---\nname: x\ndescription: y\nuser-invocable: true\n---\n"; assert!(!validate_skill_frontmatter(i).iter().any(|f| f.code == "CCC-SKILL-006")); }
+    #[test] fn ccc_skill_007_default_enabled_not_bool() { let i = "---\nname: x\ndescription: y\ndefault-enabled: nope\n---\n"; assert!(validate_skill_frontmatter(i).iter().any(|f| f.code == "CCC-SKILL-007")); }
+    #[test] fn ccc_skill_008_invalid_context() { let i = "---\nname: x\ndescription: y\ncontext: spawn\n---\n"; assert!(validate_skill_frontmatter(i).iter().any(|f| f.code == "CCC-SKILL-008")); }
+    #[test] fn valid_context_fork_clean_skill() { let i = "---\nname: x\ndescription: y\ncontext: fork\n---\n"; assert!(!validate_skill_frontmatter(i).iter().any(|f| f.code == "CCC-SKILL-008")); }
+    #[test] fn ccc_skill_009_invalid_effort() { let i = "---\nname: x\ndescription: y\neffort: extreme\n---\n"; assert!(validate_skill_frontmatter(i).iter().any(|f| f.code == "CCC-SKILL-009")); }
+    #[test] fn valid_effort_max_clean_skill() { let i = "---\nname: x\ndescription: y\neffort: max\n---\n"; assert!(!validate_skill_frontmatter(i).iter().any(|f| f.code == "CCC-SKILL-009")); }
+    #[test] fn ccc_skill_010_empty_argument_hint() { let i = "---\nname: x\ndescription: y\nargument-hint: \n---\n"; assert!(validate_skill_frontmatter(i).iter().any(|f| f.code == "CCC-SKILL-010")); }
 }
