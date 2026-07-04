@@ -13,6 +13,9 @@ name = "claude_code_config_lsp"
 path = "src/lib.rs"
 
 [dependencies]
+clap-noun-verb = "26.6.2"
+clap-noun-verb-macros = "26.6.2"
+linkme = "0.3.36"
 lsp-max = "26.7.3"
 lsp-types-max = { version = "26.6", features = ["proposed"] }
 tree-sitter = "0.26"

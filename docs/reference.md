@@ -26,7 +26,7 @@ Authoritative lookup tables. Stable facts; no procedural guidance.
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `model` | string | no | Versioned model ID. Haiku permitted for read-only agent roles only. |
-| `effort` | string enum | no | `low` \| `medium` \| `high` \| `max` |
+| `effort` | string enum | no | `low` \| `medium` \| `high` \| `xhigh` \| `max` |
 | `permissions.allow` | string[] | no | Tool names or glob patterns explicitly allowed |
 | `permissions.deny` | string[] | no | Tool names or glob patterns explicitly denied |
 | `hooks` | object | no | Keys: `PreToolUse`, `PostToolUse`, `Notification`, `Stop`, `SubagentStop` |
@@ -103,7 +103,7 @@ agents installed under `~/.claude/plugins/cache/...` (tagged `[plugin]`).
 | `name` | string | yes | Identifier; lowercase, hyphens, max 64 chars |
 | `description` | string | yes | When to invoke this agent; used for auto-routing |
 | `model` | string | no | Model ID override. Haiku: read-only roles only. |
-| `effort` | string | no | `low` \| `medium` \| `high` \| `max` |
+| `effort` | string | no | `low` \| `medium` \| `high` \| `xhigh` \| `max` |
 | `maxTurns` | integer | no | Maximum turns before the agent stops |
 | `tools` | string[] | no | Tool allowlist; defaults to parent's set |
 | `disallowedTools` | string[] | no | Tools explicitly blocked |

@@ -25,4 +25,10 @@ pub mod conformance;
 
 pub mod coverage;
 
+pub mod scan;
+
+pub mod inventory;
+
+pub mod receipt;
+
 pub use backend::ClaudeCodeConfigBackend as Backend;

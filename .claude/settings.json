@@ -3,7 +3,7 @@
     {
       "name": "claude-code-config-lsp",
       "command": "claude-code-config-lsp",
-      "args": [],
+      "args": ["serve", "--stdio"],
       "extensionToLanguage": {
         ".json": "claude-code-config",
         ".md": "claude-code-config"
@@ -32,6 +32,11 @@
     "baseRef": "fresh"
   },
   "cleanupPeriodDays": 30,
-  "skillOverrides": "off",
+  "skillOverrides": {
+    "example-on": "on",
+    "example-off": "off",
+    "example-name-only": "name-only",
+    "example-user-invocable": "user-invocable-only"
+  },
   "parentSettingsBehavior": "merge"
 }

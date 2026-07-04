@@ -20,7 +20,7 @@
   "lspServers": {
     "claude-code-config": {
       "command": "claude-code-config-lsp",
-      "args": [],
+      "args": ["serve", "--stdio"],
       "transport": "stdio",
       "extensionToLanguage": {
         ".json": "claude-code-config",

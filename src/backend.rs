@@ -17,21 +17,6 @@ use cargo_cicd_core::workspace::WorkspaceSnapshot;
 #[cfg(feature = "praxis")]
 use praxis::{AdmittedReceipt, Evidence};
 
-#[allow(unused_imports)]
-use crate::analyzers::claude_md::{
-    validate_claude_md, validate_skill_frontmatter, ClaudeMdAnalyzer, RawFinding,
-    ReplayableAnalyzer as ClaudeMdReplayable,
-};
-use crate::analyzers::frontmatter::{
-    validate_agent_frontmatter, FrontmatterAnalyzer,
-    ReplayableAnalyzer as FrontmatterReplayable,
-};
-use crate::analyzers::hook::{HookAnalyzer, ReplayableAnalyzer as HookReplayable};
-use crate::analyzers::json::{
-    validate_plugin_json, validate_settings_json_enums, JsonAnalyzer,
-    ReplayableAnalyzer as JsonReplayable,
-};
-use crate::analyzers::toml::{TomlAnalyzer, ReplayableAnalyzer as TomlReplayable};
 use crate::ocel_accumulator::{AccumulatedEvent, OcelAccumulator, OcelRelationship};
 
 /// The three layers a config file (agents, skills, etc.) can resolve from.
@@ -99,6 +84,7 @@ impl ClaudeCodeConfigBackend {
     /// packs, suitable for holding across an `await` point (e.g. while
     /// evaluating cross-file rules or answering a `max/health`-style query)
     /// without blocking concurrent `did_change` notifications.
+    #[allow(dead_code)]
     fn rule_pack_snapshot(&self) -> RulePackSnapshot {
         self.index.snapshot(std::sync::Arc::new(self.packs.packs().to_vec()))
     }
@@ -118,29 +104,6 @@ impl ClaudeCodeConfigBackend {
             }
         }
         AgentScope::Project
-    }
-
-    /// Classify a URI to determine which analyzer(s) to run.
-    fn classify_uri(uri: &str) -> &'static str {
-        let u = uri.to_lowercase();
-        if u.ends_with("skill.md") || u.contains("/skills/") {
-            "skill"
-        } else if u.ends_with("claude.md") || u.ends_with("agents.md") {
-            "claude_md"
-        } else if u.contains("/agents/") && u.ends_with(".md") {
-            "agent"
-        } else if u.ends_with("settings.json") || u.ends_with("settings.local.json")
-            || u.ends_with("mcp.json") || u.ends_with("plugin.json")
-            || u.ends_with("marketplace.json") || u.ends_with("keybindings.json")
-        {
-            "json"
-        } else if u.ends_with(".toml") {
-            "toml"
-        } else if u.ends_with(".sh") || u.contains("/hooks/") {
-            "hook"
-        } else {
-            "unknown"
-        }
     }
 
     fn make_finding_scoped(code: &str, message: &str, category: &str, scope: AgentScope) -> Finding {
@@ -207,68 +170,15 @@ impl RulePackServer for ClaudeCodeConfigBackend {
     // logic by hand.
     fn scan_uri_classified(&self, uri: &Url, content: &str) -> ClassifiedFindings {
         let uri_str = uri.as_str();
-        let kind = Self::classify_uri(uri_str);
         let global = self.agent_scope(uri_str);
-        let mut sync: Vec<Finding> = Vec::new();
 
-        match kind {
-            "skill" => {
-                // NOTE: intentionally NOT running ClaudeMdAnalyzer's
-                // skill_name_rules() here — it scans the whole file for the
-                // literal substrings "claude"/"anthropic" (not just the
-                // `name:` field), so any skill whose description or body
-                // legitimately mentions Claude Code (e.g. this project's own
-                // `claude-config://` scheme) gets falsely flagged as if its
-                // *name* contained a reserved word. validate_skill_frontmatter
-                // above already does the correct, name-field-scoped check.
-                for raw in validate_skill_frontmatter(content) {
-                    sync.push(Self::make_finding_scoped(&raw.code, &raw.message, "skill", global));
-                }
-            }
-            "claude_md" => {
-                for raw in validate_claude_md(content) {
-                    sync.push(Self::make_finding_scoped(&raw.code, &raw.message, "claude_md", global));
-                }
-                for raw in ClaudeMdReplayable::analyze(&ClaudeMdAnalyzer::new(), content) {
-                    sync.push(Self::make_finding_scoped(&raw.code, &raw.message, "claude_md", global));
-                }
-            }
-            "agent" => {
-                for raw in validate_agent_frontmatter(content) {
-                    sync.push(Self::make_finding_scoped(&raw.code, &raw.message, "agent", global));
-                }
-                for raw in FrontmatterReplayable::analyze(&FrontmatterAnalyzer::new(), content) {
-                    sync.push(Self::make_finding_scoped(&raw.code, &raw.message, "agent", global));
-                }
-            }
-            "json" => {
-                for raw in JsonReplayable::analyze(&JsonAnalyzer::new(), content) {
-                    sync.push(Self::make_finding_scoped(&raw.code, &raw.message, "json", global));
-                }
-                let lower_uri = uri_str.to_lowercase();
-                if lower_uri.ends_with("settings.json") || lower_uri.ends_with("settings.local.json") {
-                    for raw in validate_settings_json_enums(content) {
-                        sync.push(Self::make_finding_scoped(&raw.code, &raw.message, "json", global));
-                    }
-                }
-                if uri_str.to_lowercase().ends_with("plugin.json") {
-                    for raw in validate_plugin_json(content) {
-                        sync.push(Self::make_finding_scoped(&raw.code, &raw.message, "json", global));
-                    }
-                }
-            }
-            "toml" => {
-                for raw in TomlReplayable::analyze(&TomlAnalyzer::new(), content) {
-                    sync.push(Self::make_finding_scoped(&raw.code, &raw.message, "toml", global));
-                }
-            }
-            "hook" => {
-                for raw in HookReplayable::analyze(&HookAnalyzer::new(), content) {
-                    sync.push(Self::make_finding_scoped(&raw.code, &raw.message, "hook", global));
-                }
-            }
-            _ => {}
-        }
+        // Single source of truth: the same classify + dispatch the `scan` CLI
+        // verb uses (see `crate::scan::analyze_document`). We only add the
+        // scope tag + OCEL event that are LSP-server-specific here.
+        let sync: Vec<Finding> = crate::scan::analyze_document(uri_str, content)
+            .into_iter()
+            .map(|raw| Self::make_finding_scoped(&raw.code, &raw.message, raw.category, global))
+            .collect();
 
         let finding_count = sync.len();
         self.emit_ocel_event("DiagnosticsPublished", &format!("uri={uri_str},count={finding_count}"));
@@ -331,10 +241,7 @@ impl LanguageServer for ClaudeCodeConfigBackend {
             return Err(lsp_max::jsonrpc::Error::method_not_found());
         }
         self.emit_ocel_event("VirtualDocumentRequested", uri);
-        let snapshot = self.rule_pack_snapshot();
-        let open_docs = snapshot.index.len();
-        let mut text = crate::virtual_docs::render();
-        text.push_str(&format!("\nOpen documents indexed: {open_docs}\n"));
+        let text = crate::virtual_docs::render();
         Ok(lsp_max::max_protocol::lsp_3_18::TextDocumentContentResult { text })
     }
 
@@ -461,11 +368,11 @@ mod andon_diagnostic_tests {
     // classification and enum validation entirely.
     #[test]
     fn settings_local_json_classifies_as_json() {
-        assert_eq!(ClaudeCodeConfigBackend::classify_uri("file:///proj/.claude/settings.local.json"), "json");
+        assert_eq!(crate::scan::classify("file:///proj/.claude/settings.local.json"), "json");
     }
 
     #[test]
     fn settings_json_still_classifies_as_json() {
-        assert_eq!(ClaudeCodeConfigBackend::classify_uri("file:///proj/.claude/settings.json"), "json");
+        assert_eq!(crate::scan::classify("file:///proj/.claude/settings.json"), "json");
     }
 }

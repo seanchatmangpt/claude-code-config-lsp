@@ -219,6 +219,9 @@ const VALID_MEMORY_SCOPES: &[&str] = &["user", "project", "local"];
 /// Valid `context` values (only `fork` is documented today).
 const VALID_CONTEXT_VALUES: &[&str] = &["fork"];
 
+/// Valid `effort` values for agent frontmatter (mirrors skill `effort`).
+const VALID_AGENT_EFFORT_LEVELS: &[&str] = &["low", "medium", "high", "xhigh", "max"];
+
 /// Valid hook event names scoped within agent frontmatter's `hooks:` block.
 const VALID_AGENT_HOOK_EVENTS: &[&str] = &["PreToolUse", "PostToolUse", "Stop"];
 
@@ -359,6 +362,14 @@ pub fn validate_agent_frontmatter(content: &str) -> Vec<RawFinding> {
                 findings.push(RawFinding { code: "CCC-AGENT-010".into(), message: format!("Unknown memory scope '{val}' — valid: {}", VALID_MEMORY_SCOPES.join(", ")), span: (line_start, line_start + raw_line.len()) });
             }
         }
+
+        // CCC-AGENT-012: effort must be one of the documented levels
+        if let Some(val) = line.strip_prefix("effort:") {
+            let val = val.trim().trim_matches('"');
+            if !val.is_empty() && !VALID_AGENT_EFFORT_LEVELS.contains(&val) {
+                findings.push(RawFinding { code: "CCC-AGENT-012".into(), message: format!("Unknown effort '{val}' — valid: {}", VALID_AGENT_EFFORT_LEVELS.join(", ")), span: (line_start, line_start + raw_line.len()) });
+            }
+        }
     }
 
     if !has_description {
@@ -431,4 +442,6 @@ mod tests {
     #[test] fn valid_memory_scope_project_clean() { let i = "---\nname: x\ndescription: y\nmemory:\n  scope: project\n---\n"; assert!(!validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-010")); }
     #[test] fn ccc_agent_011_unknown_hook_event() { let i = "---\nname: x\ndescription: y\nhooks:\n  BogusEvent:\n    - type: command\n---\n"; assert!(validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-011")); }
     #[test] fn valid_hook_event_pre_tool_use_clean_in_agent() { let i = "---\nname: x\ndescription: y\nhooks:\n  PreToolUse:\n    - type: command\n---\n"; assert!(!validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-011")); }
+    #[test] fn ccc_agent_012_invalid_effort() { let i = "---\nname: x\ndescription: y\neffort: extreme\n---\n"; assert!(validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-012")); }
+    #[test] fn valid_effort_xhigh_clean_agent() { let i = "---\nname: x\ndescription: y\neffort: xhigh\n---\n"; assert!(!validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-012")); }
 }

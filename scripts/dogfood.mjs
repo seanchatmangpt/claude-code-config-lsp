@@ -65,7 +65,7 @@ console.log(`Discovered ${fixtures.length} fixtures:`);
 for (const f of fixtures) console.log(`  ${path.relative(repoRoot, f)}`);
 console.log();
 
-const child = spawn(BIN, [], { stdio: ["pipe", "pipe", "pipe"] });
+const child = spawn(BIN, ["serve", "--stdio"], { stdio: ["pipe", "pipe", "pipe"] });
 let buf = Buffer.alloc(0);
 const diagnosticsByUri = {};
 

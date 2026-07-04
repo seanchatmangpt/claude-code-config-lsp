@@ -254,6 +254,9 @@ mod tests {
     #[test] fn invalid_worktree_base_ref_fires_ccc_json_008() { let i = r#"{"worktree": {"baseRef": "bogus"}}"#; assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-008")); }
     #[test] fn valid_worktree_base_ref_head_clean() { let i = r#"{"worktree": {"baseRef": "head"}}"#; assert!(!validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-008")); }
     #[test] fn invalid_skill_overrides_fires_ccc_json_009() { let i = r#"{"skillOverrides": "bogus"}"#; assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-009")); }
+    #[test] fn skill_overrides_string_off_fires_ccc_json_009() { let i = r#"{"skillOverrides": "off"}"#; assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-009")); }
+    #[test] fn skill_overrides_bad_mode_fires_ccc_json_009() { let i = r#"{"skillOverrides": {"foo": "bogus"}}"#; assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-009")); }
+    #[test] fn skill_overrides_valid_record_clean() { let i = r#"{"skillOverrides": {"foo": "off", "bar": "name-only", "baz": "user-invocable-only", "qux": "on"}}"#; assert!(!validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-009")); }
     #[test] fn invalid_parent_settings_behavior_fires_ccc_json_010() { let i = r#"{"parentSettingsBehavior": "bogus"}"#; assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-010")); }
     #[test] fn invalid_mcp_server_type_fires_ccc_json_011() { let i = r#"{"mcpServers": {"foo": {"type": "bogus"}}}"#; assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-011")); }
     #[test] fn valid_mcp_server_type_sse_clean() { let i = r#"{"mcpServers": {"foo": {"type": "sse"}}}"#; assert!(!validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-011")); }
@@ -303,8 +306,9 @@ const VALID_HOOK_TYPES: &[&str] = &["command", "prompt", "agent", "http", "mcp_t
 /// Valid `worktree.baseRef` values.
 const VALID_WORKTREE_BASE_REFS: &[&str] = &["fresh", "head"];
 
-/// Valid `skillOverrides` values.
-const VALID_SKILL_OVERRIDES: &[&str] = &["off", "user-invocable-only", "name-only"];
+/// Valid per-skill modes for `skillOverrides`. Note: `skillOverrides` itself is a
+/// record mapping skill name → one of these modes, NOT a bare string.
+const VALID_SKILL_OVERRIDES: &[&str] = &["on", "off", "name-only", "user-invocable-only"];
 
 /// Valid `parentSettingsBehavior` values.
 const VALID_PARENT_SETTINGS_BEHAVIOR: &[&str] = &["first-wins", "merge"];
@@ -420,15 +424,31 @@ pub fn validate_settings_json_enums(content: &str) -> Vec<RawFinding> {
         }
     }
 
-    // CCC-JSON-009: skillOverrides enum
-    if let Some(v) = obj.get("skillOverrides").and_then(|v| v.as_str()) {
-        if !VALID_SKILL_OVERRIDES.contains(&v) {
-            findings.push(RawFinding {
-                code: "CCC-JSON-009".into(),
-                message: format!("Invalid skillOverrides '{v}' — valid: {}", VALID_SKILL_OVERRIDES.join(", ")),
-                span: (0, 0),
-            });
+    // CCC-JSON-009: skillOverrides is a record mapping skill name → override mode
+    match obj.get("skillOverrides") {
+        None => {}
+        Some(serde_json::Value::Object(overrides)) => {
+            for (skill, mode) in overrides {
+                match mode.as_str() {
+                    Some(m) if VALID_SKILL_OVERRIDES.contains(&m) => {}
+                    Some(m) => findings.push(RawFinding {
+                        code: "CCC-JSON-009".into(),
+                        message: format!("skillOverrides.{skill}: invalid mode '{m}' — valid: {}", VALID_SKILL_OVERRIDES.join(", ")),
+                        span: (0, 0),
+                    }),
+                    None => findings.push(RawFinding {
+                        code: "CCC-JSON-009".into(),
+                        message: format!("skillOverrides.{skill}: mode must be a string — valid: {}", VALID_SKILL_OVERRIDES.join(", ")),
+                        span: (0, 0),
+                    }),
+                }
+            }
         }
+        Some(_) => findings.push(RawFinding {
+            code: "CCC-JSON-009".into(),
+            message: format!("skillOverrides must be a record mapping skill name → mode ({}), not a scalar", VALID_SKILL_OVERRIDES.join(", ")),
+            span: (0, 0),
+        }),
     }
 
     // CCC-JSON-010: parentSettingsBehavior enum

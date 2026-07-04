@@ -1,0 +1,88 @@
+{
+  "timestamp": "2026-07-04T01:43:37.673145Z",
+  "conformance_score": 1.0,
+  "file_checksums": [
+    {
+      "path": ".claude-plugin/marketplace.json",
+      "checksum": "9362e13b8415648685e001dbdaf0ec28577a3f165ca0d610d2b39c5cd257cedf"
+    },
+    {
+      "path": ".claude-plugin/plugin.json",
+      "checksum": "e86066385cc1da8ba19464d914549168da8543914e2ed36b94d00a032414ef3d"
+    },
+    {
+      "path": ".claude-plugin/skills/validate-config/SKILL.md",
+      "checksum": "b3e2c9b369af0e450cdf583d780aa1c23d633804dcac5c425147b97ede5a3700"
+    },
+    {
+      "path": ".claude/agents/auto-triage-bot.md",
+      "checksum": "b87ce940c1c75778ca1aab1206210158d79f22e932216eedfc3e839a895e9460"
+    },
+    {
+      "path": ".claude/agents/config-conformance-reviewer.md",
+      "checksum": "28c0a317c6bb6b4253b1215517203b80927d53168ea679dea7f552245d6db95a"
+    },
+    {
+      "path": ".claude/agents/ontology-sync-agent.md",
+      "checksum": "234a0214071406a2e3fd68c0f56d34f346a27a19477eaaa9f2b17d8bdc07248b"
+    },
+    {
+      "path": ".claude/agents/release-manager.md",
+      "checksum": "5d1c0d6b8ff9649a565ea7499cfada74a21a162e810a1b9e7a32668eba4f810a"
+    },
+    {
+      "path": ".claude/agents/research-scout.md",
+      "checksum": "7cfef132ed4c7b8936f8b16b3175eabda7b2c9145d07b5c21b0155a3e71ea124"
+    },
+    {
+      "path": ".claude/agents/schema-refactor-worker.md",
+      "checksum": "d3aeb6fada67d418aa300d14830abd502fb497669f8d73ffaded5e7d0a957414"
+    },
+    {
+      "path": ".claude/lsp-max-auto.toml",
+      "checksum": "8b65403b0a26c06aaab96eb6ef07cc60ae34d14c75074ccfb744403e11835f17"
+    },
+    {
+      "path": ".claude/settings.json",
+      "checksum": "2a9a5938aa6d6c8484235e8e1cc41bac074d4b9474b50f67a6407f24f8e89929"
+    },
+    {
+      "path": ".claude/settings.local.json",
+      "checksum": "caf90340edb0df0072d9c004b7232d17e885f1940a0fac48cd5dd98f76454028"
+    },
+    {
+      "path": ".claude/skills/bulk-rule-audit/SKILL.md",
+      "checksum": "de0e289eb3148d2633cc0d8278b7b6acb2846298703a91ea0643473c266694e0"
+    },
+    {
+      "path": ".claude/skills/changelog-miner/SKILL.md",
+      "checksum": "a8fe0389b5b7913df6572082ab41110d7d2a882d3d7781e023c461bda777534d"
+    },
+    {
+      "path": ".claude/skills/conformance-report/SKILL.md",
+      "checksum": "858bf115848e604ec13dc6a1f3d436b2cf7d307d9445dad2d4d937b7b959f649"
+    },
+    {
+      "path": ".claude/skills/ontology-diff/SKILL.md",
+      "checksum": "37c61e3e962a1e0861c29efd2b10e585cc759aeb790607b4b588ed51e8315ae4"
+    },
+    {
+      "path": ".claude/skills/release-checklist/SKILL.md",
+      "checksum": "376029933bd1d975c35ce0a7d161ca979277154da3c41086ac2b3030712aa567"
+    },
+    {
+      "path": ".mcp.json",
+      "checksum": "447a95d1c114d0498d9b931c63cb7dc901edcb2d6dfcb17e54fdc11c07d3e4c6"
+    },
+    {
+      "path": "CLAUDE.md",
+      "checksum": "6e9082d798dbfe73236609462190006e1689ced9a2dc83a467b38a3340674249"
+    },
+    {
+      "path": "hooks/session-start.sh",
+      "checksum": "8f181f45a93107b102c65a1355eaf85cd91f22a5e11b9e784f8f785c533d404c"
+    }
+  ],
+  "previous_receipt_hash": null,
+  "hash": "4037c846aec5b4189825fd4f2542e6114d8793f3a1a06aa29afc51ee9200e2a1"
+}

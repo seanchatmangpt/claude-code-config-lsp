@@ -8,7 +8,11 @@ use crate::coverage::CoverageReport;
 
 /// Render the `claude-config://health` virtual document content.
 pub fn render() -> String {
-    render_with_coverage(&crate::coverage::coverage_report())
+    let root = std::env::current_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|_| ".".to_string());
+    let conformance = crate::inventory::conformance_report(&root);
+    serde_json::to_string(&conformance).unwrap_or_default()
 }
 
 /// Render `claude-config://health`, interpolating a given [`CoverageReport`].
@@ -44,6 +48,6 @@ mod tests {
     fn render_is_non_empty() {
         let content = render();
         assert!(!content.is_empty());
-        assert!(content.contains("Virtual document"));
+        assert!(content.contains("score"));
     }
 }
