@@ -25,7 +25,7 @@ dependencies = [
  "thiserror 2.0.18",
  "walkdir",
  "wasm-encoder",
- "wasm4pm-compat",
+ "wasm4pm-compat 26.6.26",
 ]
 
 [[package]]
@@ -183,6 +183,34 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 
 [[package]]
+name = "bcinr"
+version = "26.6.24"
+dependencies = [
+ "bcinr-api",
+ "bcinr-core",
+ "bcinr-logic",
+]
+
+[[package]]
+name = "bcinr-api"
+version = "26.6.24"
+dependencies = [
+ "bcinr-logic",
+]
+
+[[package]]
+name = "bcinr-core"
+version = "26.6.24"
+dependencies = [
+ "bcinr-api",
+ "bcinr-logic",
+]
+
+[[package]]
+name = "bcinr-logic"
+version = "26.6.24"
+
+[[package]]
 name = "bitflags"
 version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -236,6 +264,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ae3f5d315924270530207e2a68396c3cc547f6dca3fbdca317cfb1a51edb593"
 
 [[package]]
+name = "cargo-cicd-core"
+version = "26.6.30"
+dependencies = [
+ "serde",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "cc"
 version = "1.2.65"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -250,6 +286,34 @@ name = "cfg-if"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
+
+[[package]]
+name = "chicago-tdd-tools"
+version = "26.6.30"
+dependencies = [
+ "chicago-tdd-tools-proc-macros",
+ "chrono",
+ "futures",
+ "hex",
+ "log",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "sha2",
+ "thiserror 2.0.18",
+ "tokio",
+ "toml",
+ "uuid",
+]
+
+[[package]]
+name = "chicago-tdd-tools-proc-macros"
+version = "26.6.30"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.118",
+]
 
 [[package]]
 name = "chrono"
@@ -350,10 +414,14 @@ name = "claude-code-config-lsp"
 version = "26.6.24"
 dependencies = [
  "async-trait",
+ "bcinr",
  "blake3",
+ "cargo-cicd-core",
+ "chicago-tdd-tools",
  "chrono",
  "lsp-max",
  "lsp-types-max",
+ "my-conforming-project",
  "serde",
  "serde_json",
  "tokio",
@@ -361,6 +429,7 @@ dependencies = [
  "tracing-subscriber",
  "tree-sitter",
  "tree-sitter-json",
+ "wasm4pm-compat 26.6.28",
 ]
 
 [[package]]
@@ -616,6 +685,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "117240f60069e65410b3ae1bb213295bd828f707b5bec6596a1afc8793ce0cbc"
 
 [[package]]
+name = "dyn-clone"
+version = "1.0.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
+
+[[package]]
 name = "ed25519"
 version = "2.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -741,6 +816,7 @@ checksum = "8b147ee9d1f6d097cef9ce628cd2ee62288d963e16fb287bd9286455b241382d"
 dependencies = [
  "futures-channel",
  "futures-core",
+ "futures-executor",
  "futures-io",
  "futures-sink",
  "futures-task",
@@ -762,6 +838,17 @@ name = "futures-core"
 version = "0.3.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7e3450815272ef58cec6d564423f6e755e25379b217b0bc688e295ba24df6b1d"
+
+[[package]]
+name = "futures-executor"
+version = "0.3.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "baf29c38818342a3b26b5b923639e7b1f4a61fc5e76102d4b1981c6dc7a7579d"
+dependencies = [
+ "futures-core",
+ "futures-task",
+ "futures-util",
+]
 
 [[package]]
 name = "futures-io"
@@ -1280,7 +1367,7 @@ dependencies = [
  "tree-sitter",
  "url",
  "wasm4pm-cognition",
- "wasm4pm-compat",
+ "wasm4pm-compat 26.6.26",
  "windows-sys 0.52.0",
 ]
 
@@ -1376,7 +1463,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
- "wasm4pm-compat",
+ "wasm4pm-compat 26.6.26",
 ]
 
 [[package]]
@@ -1399,7 +1486,7 @@ dependencies = [
  "thiserror 2.0.18",
  "url",
  "uuid",
- "wasm4pm-compat",
+ "wasm4pm-compat 26.6.26",
 ]
 
 [[package]]
@@ -1413,6 +1500,15 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_repr",
+]
+
+[[package]]
+name = "matchers"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d1525a2a28c7f4fa0fc98bb91ae755d1e2d1505079e05539e35bc876b5d65ae9"
+dependencies = [
+ "regex-automata",
 ]
 
 [[package]]
@@ -1471,6 +1567,23 @@ dependencies = [
  "libc",
  "wasi",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "my-conforming-project"
+version = "26.6.30"
+dependencies = [
+ "anyhow",
+ "blake3",
+ "clap",
+ "clap-noun-verb",
+ "linkme",
+ "once_cell",
+ "schemars",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -1925,6 +2038,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "ref-cast"
+version = "1.0.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f354300ae66f76f1c85c5f84693f0ce81d747e2c3f21a45fef496d89c960bf7d"
+dependencies = [
+ "ref-cast-impl",
+]
+
+[[package]]
+name = "ref-cast-impl"
+version = "1.0.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7186006dcb21920990093f30e3dea63b7d6e977bf1256be20c3563a5db070da"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.118",
+]
+
+[[package]]
 name = "regex"
 version = "1.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2089,6 +2222,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "schemars"
+version = "1.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a2b42f36aa1cd011945615b92222f6bf73c599a102a300334cd7f8dbeec726cc"
+dependencies = [
+ "dyn-clone",
+ "ref-cast",
+ "schemars_derive",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "schemars_derive"
+version = "1.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d115b50f4aaeea07e79c1912f645c7513d81715d0420f8bc77a18c6260b307f"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "serde_derive_internals",
+ "syn 2.0.118",
+]
+
+[[package]]
 name = "scopeguard"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2124,6 +2282,17 @@ name = "serde_derive"
 version = "1.0.228"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d540f220d3187173da220f885ab66608367b6574e925011a9353e4badda91d79"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.118",
+]
+
+[[package]]
+name = "serde_derive_internals"
+version = "0.29.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "18d26a20a969b9e3fdf2fc2d9f21eda6c40e2de84c9408bb5d3b05d499aae711"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2669,10 +2838,14 @@ version = "0.3.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb7f578e5945fb242538965c2d0b04418d38ec25c79d160cd279bf0731c8d319"
 dependencies = [
+ "matchers",
  "nu-ansi-term",
+ "once_cell",
+ "regex-automata",
  "sharded-slab",
  "smallvec",
  "thread_local",
+ "tracing",
  "tracing-core",
  "tracing-log",
 ]
@@ -2937,6 +3110,20 @@ name = "wasm4pm-compat"
 version = "26.6.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81a91889ae6aaadd8e23e86c7a88b2b046b8359abff8e5b2f76aa6056fe625b5"
+dependencies = [
+ "blake3",
+ "chrono",
+ "hashbrown 0.17.1",
+ "quick-xml 0.36.2",
+ "rustc-hash",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "wasm4pm-compat"
+version = "26.6.28"
 dependencies = [
  "blake3",
  "chrono",

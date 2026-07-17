@@ -25,3 +25,21 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 chrono = { version = "0.4", features = ["serde"] }
 blake3 = "1"
+
+# Optional path dependencies
+bcinr = { path = "/Users/sac/bcinr/bcinr", optional = true }
+wasm4pm-compat = { path = "/Users/sac/wasm4pm-compat", optional = true }
+chicago-tdd-tools = { path = "/Users/sac/chicago-tdd-tools", optional = true }
+cargo-cicd-core = { path = "/Users/sac/cargo-cicd/crates/cargo-cicd-core", optional = true }
+my-conforming-project = { path = "/Users/sac/praxis", optional = true }
+
+[features]
+# Feature flags for optional path dependencies
+bcinr-support = ["bcinr"]
+wasm4pm-support = ["wasm4pm-compat"]
+chicago-tdd-support = ["chicago-tdd-tools"]
+cargo-cicd-support = ["cargo-cicd-core"]
+praxis-support = ["my-conforming-project"]
+
+# Meta-feature to enable all optional dependencies
+all-features = ["bcinr-support", "wasm4pm-support", "chicago-tdd-support", "cargo-cicd-support", "praxis-support"]
