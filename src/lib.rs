@@ -32,4 +32,6 @@ pub mod inventory;
 
 pub mod receipt;
 
+pub mod quickfix;
+
 pub use backend::ClaudeCodeConfigBackend as Backend;

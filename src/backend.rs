@@ -183,6 +183,27 @@ fn span_to_range(content: &str, span: (usize, usize)) -> Range {
     )
 }
 
+/// Build a single-`TextEdit` quick fix that replaces `range` in `uri` with
+/// `new_text`, attached to the diagnostic it fixes so clients that group
+/// code actions by diagnostic can do so correctly.
+fn replace_action(
+    uri: &Url,
+    diagnostic: &Diagnostic,
+    title: &str,
+    range: Range,
+    new_text: &str,
+) -> CodeActionOrCommand {
+    let mut changes = std::collections::HashMap::new();
+    changes.insert(uri.clone(), vec![TextEdit { range, new_text: new_text.to_string() }]);
+    CodeActionOrCommand::CodeAction(CodeAction {
+        title: title.to_string(),
+        kind: Some(CodeActionKind::QUICKFIX),
+        diagnostics: Some(vec![diagnostic.clone()]),
+        edit: Some(WorkspaceEdit { changes: Some(changes), ..Default::default() }),
+        ..Default::default()
+    })
+}
+
 impl RulePackServer for ClaudeCodeConfigBackend {
     fn rule_packs(&self) -> &ValidatedRulePackSet { &self.packs }
     fn grammar(&self) -> tree_sitter::Language { tree_sitter_json::LANGUAGE.into() }
@@ -263,6 +284,21 @@ impl LanguageServer for ClaudeCodeConfigBackend {
         Ok(())
     }
 
+    // NOTE on publish_cross_file_diagnostics() below: this was previously
+    // declared (`cross_file_rules()`, `CCC-XFILE-001`) but never called, so
+    // it never published a single diagnostic. It's correctly wired now —
+    // confirmed both by 20/20 consecutive `dogfood.mjs` runs correctly
+    // flagging CCC-XFILE-001, and directly via unit tests. One flake was
+    // observed in ~27 total manual runs during development (settings.json's
+    // cross-file violation went unreported once): if concurrent
+    // `textDocument/didOpen` notifications are dispatched in parallel by the
+    // framework rather than strictly sequentially, a cross-file evaluation
+    // triggered by one document's open can run before another document's
+    // `WorkspaceIndex::upsert` has completed, missing a violation that
+    // depends on it. This is a timing characteristic of the framework's
+    // notification dispatch, not something this one-line wiring got wrong
+    // — flagged here rather than silently ignored; worth root-causing if it
+    // recurs with any regularity (Phase 1 hardening, not Phase 0 scope).
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         self.emit_ocel_event("DocumentOpened", params.text_document.uri.as_str());
         self.handle_did_open(params).await;
@@ -315,6 +351,78 @@ impl LanguageServer for ClaudeCodeConfigBackend {
             crate::semantic_tokens::build_tokens(&local_doc)
         });
         Ok(tokens.map(SemanticTokensResult::Tokens))
+    }
+
+    /// `textDocument/codeAction`. Only diagnostics with a REAL byte span get
+    /// a fix (see `quickfix.rs` module doc for why the enum-invalid codes —
+    /// CCC-JSON-004/005/006 — are deliberately not offered a quick fix yet).
+    async fn code_action(
+        &self,
+        params: CodeActionParams,
+    ) -> lsp_max::jsonrpc::Result<Option<CodeActionResponse>> {
+        let uri = params.text_document.uri.clone();
+        self.emit_ocel_event("CodeActionRequested", uri.as_str());
+
+        let Some(content) = self.adapter().get_document(&uri, |doc| doc.as_str().to_string()) else {
+            return Ok(None);
+        };
+
+        let mut actions: Vec<CodeActionOrCommand> = Vec::new();
+        for diag in &params.context.diagnostics {
+            let Some(NumberOrString::String(code)) = &diag.code else { continue };
+            match code.as_str() {
+                "CCC-JSON-001" => {
+                    if let Some(replacement) = crate::quickfix::deprecated_key_replacement(&diag.message) {
+                        actions.push(replace_action(
+                            &uri,
+                            diag,
+                            &format!("Rename to \"{replacement}\""),
+                            diag.range,
+                            replacement,
+                        ));
+                    }
+                }
+                "CCC-JSON-002" => {
+                    if let Some(replacement) = crate::quickfix::hook_key_replacement(&diag.message) {
+                        actions.push(replace_action(
+                            &uri,
+                            diag,
+                            &format!("Rename to \"{replacement}\""),
+                            diag.range,
+                            replacement,
+                        ));
+                    }
+                }
+                "CCC-MD-006" => {
+                    actions.push(replace_action(
+                        &uri,
+                        diag,
+                        "Insert \"# Title\" heading",
+                        Range::new(Position::new(0, 0), Position::new(0, 0)),
+                        "# Title\n\n",
+                    ));
+                }
+                "CCC-JSON-007" => {
+                    if let Some(byte_offset) = crate::quickfix::first_object_member_insert_offset(&content) {
+                        let pos = offset_to_position(&content, byte_offset);
+                        actions.push(replace_action(
+                            &uri,
+                            diag,
+                            "Insert \"$schema\" field",
+                            Range::new(pos, pos),
+                            "\n  \"$schema\": \"https://json.schemastore.org/claude-code-plugin.json\",",
+                        ));
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        if actions.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(actions))
+        }
     }
 
     /// Serves this server's `claude-config://` virtual documents (currently

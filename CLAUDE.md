@@ -73,9 +73,15 @@ schema/claude-code-config.ttl (RDF source of truth)
      ├─ src/virtual_docs.rs — virtual documentation URIs
      ├─ src/capabilities.rs — LSP server capability declarations
      ├─ src/conformance.rs — conformance scoring rules
+     ├─ src/coverage.rs, src/inventory.rs, src/ocel_accumulator.rs, src/receipt.rs, src/nouns/ — additional generated modules
      ├─ Cargo.toml — manifest metadata
      └─ src/{main,lib,backend}.rs — server entrypoint & backends
 ```
+
+`src/scan.rs` (shared classify + analyzer dispatch, used by both the LSP backend and the
+`scan` CLI verb) and `src/quickfix.rs` (code-action text-fix logic) are hand-written, not
+generated — they exist to give the LSP backend and CLI a single source of truth /
+testable pure functions the generator doesn't currently model.
 
 When the ontology changes:
 
@@ -84,6 +90,14 @@ ggen sync
 ```
 
 Regenerates all affected files. Generated files are first-class source and must be inspected and committed. They are NOT read-only or marked with `DO NOT EDIT` banners.
+
+**Known limitation (as of this writing):** `ggen sync` currently fails on this repo with
+`[FM-GEN-007] TemplateSource::Pack (pack "lsp-max") is not implemented yet` — a ggen core
+bug (confirmed by reproducing it against a throwaway unrelated pack), not something wrong
+with this project's `ggen.toml`. `src/capabilities.rs` in particular is hand-edited right
+now as a workaround; regenerate it properly once the upstream bug is fixed, and fix the
+underlying SPARQL query to `DISTINCT` its rows (the previous generated output had
+duplicate capability entries).
 
 ### Backend Handler Flow
 
@@ -178,7 +192,7 @@ Edit the `rdfs:comment` (for hover) or completion table in the ontology. Run `gg
 ## Dependencies
 
 **Core:**
-- `lsp-max` (26.6) — LSP server framework, conformance, rule pack infrastructure
+- `lsp-max` (26.7.3) — LSP server framework, conformance, rule pack infrastructure
 - `lsp-types-max` (26.6, proposed features) — LSP type definitions
 - `tree-sitter` (0.26) — Syntax tree parsing
 - `tree-sitter-json` (0.23) — JSON parser
@@ -199,7 +213,14 @@ Edit the `rdfs:comment` (for hover) or completion table in the ontology. Run `gg
 
 ## Testing
 
-No integrated test suite yet. Validation is manual:
+An integrated test suite exists: `cargo test` runs ~184 tests across
+`tests/chicago_tdd.rs` (analyzer unit tests, Chicago-style — real functions,
+real inputs, no mocks), `tests/chicago_tdd_inventory.rs` (`scan`/`inventory`
+module coverage), and `#[cfg(test)]` modules inline in most `src/*.rs` files
+(analyzers, `capabilities.rs`, `backend.rs`, `quickfix.rs`, `scan.rs`,
+`schema.rs`, `semantic_tokens.rs`).
+
+Beyond `cargo test`, manual/end-to-end validation:
 
 1. **Install as plugin:**
    ```bash
@@ -207,12 +228,22 @@ No integrated test suite yet. Validation is manual:
    # Copy to Claude Code plugins directory or use local development plugin
    ```
 
-2. **Open config files in Claude Code:**
-   - Diagnostics appear in real time
-   - Hover over fields for documentation
-   - Type `{` in JSON files to trigger completion
+2. **Dogfood harness** — drives the real compiled binary over the actual
+   Content-Length-framed JSON-RPC wire protocol against this repo's own
+   `.claude/`/`.claude-plugin/`/`.mcp.json` fixtures:
+   ```bash
+   cargo build
+   node scripts/dogfood.mjs
+   ```
 
-3. **Query workspace conformance:**
+3. **Open config files in Claude Code:**
+   - Diagnostics appear in real time, with real ranges (not line 0/column 0)
+   - Hover over fields for documentation
+   - Type `{` or `"` in JSON files to trigger completion
+   - Quick fixes (lightbulb) available for a subset of diagnostics —
+     `CCC-JSON-001`, `CCC-JSON-002`, `CCC-JSON-007`, `CCC-MD-006`
+
+4. **Query workspace conformance:**
    - URI: `claude-config://health`
    - Returns aggregate `WorkspaceConformance` score and full violation list
 
@@ -237,7 +268,18 @@ To update marketplace entry, edit `.claude-plugin/marketplace.json` and push to 
 
 ## Status
 
-**Current:** CANDIDATE (receipt chain OPEN). The server passes LSP 3.18 conformance checks and validates all five config surfaces. Schema, analyzers, hover, and completion are wired.
+**Current:** CANDIDATE. The most recent `.cicd/integration-receipt.json` recorded verdict
+`ADMITTED` (cargo_check/clippy/test all PASS) — the receipt chain is not "OPEN" as a
+prior version of this doc claimed. There is no dedicated LSP 3.18 *protocol* conformance
+test suite; `src/conformance.rs`'s `ConformanceVector`/workspace-conformance score is an
+internal admitted/refused/unknown tracker over this project's own method list, a
+different thing from formal LSP 3.18 spec conformance — don't conflate the two.
+
+Schema, analyzers, hover, completion, semantic tokens, and a first slice of code actions
+(quick fixes) are wired and advertised in `ServerCapabilities` — verified via a real
+`initialize` request over stdio, not just unit tests. Prior versions of `src/capabilities.rs`
+had every field commented out and the module wasn't declared in `lib.rs`, so `hover`/
+`completion` were fully implemented but unreachable by any client; this is fixed.
 
 **Conformance:** Tracks workspace conformance via Declare constraint model and conformance vector scoring.
 

@@ -38,6 +38,12 @@ pub fn server_capabilities() -> ServerCapabilities {
             },
         )),
 
+        code_action_provider: Some(CodeActionProviderCapability::Options(CodeActionOptions {
+            code_action_kinds: Some(vec![CodeActionKind::QUICKFIX]),
+            resolve_provider: None,
+            work_done_progress_options: WorkDoneProgressOptions::default(),
+        })),
+
         execute_command_provider: Some(ExecuteCommandOptions {
             commands: {
                 #[allow(unused_mut)]
@@ -52,7 +58,6 @@ pub fn server_capabilities() -> ServerCapabilities {
         // Not yet implemented — Phase 1 of the "perfect LSP" roadmap.
         // code_lens_provider: Some(/* wired in backend */),
         // inlay_hint_provider: Some(/* wired in backend */),
-        // code_action_provider: Some(/* wired in backend */),
         // definition_provider: Some(/* wired in backend */),
         // document_highlight_provider: Some(/* wired in backend */),
         // document_link_provider: Some(/* wired in backend */),
@@ -75,7 +80,6 @@ pub fn server_capabilities() -> ServerCapabilities {
         // implementation_provider: Some(/* wired in backend */),
         // document_on_type_formatting_provider: Some(/* wired in backend */),
         // type_definition_provider: Some(/* wired in backend */),
-        // execute_command_provider: Some(/* wired in backend */),
         ..Default::default()
     }
 }
@@ -109,5 +113,23 @@ mod tests {
             }
             other => panic!("expected SemanticTokensOptions, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn advertises_code_action_quickfix_kind() {
+        let caps = server_capabilities();
+        match caps.code_action_provider.expect("code_action_provider must be Some") {
+            CodeActionProviderCapability::Options(opts) => {
+                assert_eq!(opts.code_action_kinds, Some(vec![CodeActionKind::QUICKFIX]));
+            }
+            other => panic!("expected CodeActionOptions, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn advertises_execute_command_with_conformance_audit() {
+        let caps = server_capabilities();
+        let ec = caps.execute_command_provider.expect("execute_command_provider must be Some");
+        assert!(ec.commands.contains(&"claude-code-config/conformanceAudit".to_string()));
     }
 }
