@@ -3,9 +3,28 @@ use clap_noun_verb_macros::verb;
 
 use claude_code_config_lsp::inventory::{self, ConfigTree, ConfigUsageReport, ScanReport, WorkspaceConformance};
 
+/// Route all `tracing` output to stderr, and do it before anything can log.
+///
+/// stdout is the LSP frame channel. `tracing`'s default subscriber writes to
+/// stdout, so a single INFO line emitted during startup (for example
+/// `lsp_max::service::watchdog` announcing the parent PID) lands *in front of*
+/// the first `Content-Length:` header and corrupts the stream for any client
+/// that parses strictly. Installing a stderr subscriber first claims the global
+/// default, so no later initializer can point logging at stdout.
+///
+/// `try_init` rather than `init`: if a caller (a test, an embedding binary) has
+/// already installed a subscriber, losing the race is fine -- failing to start
+/// the server over it is not.
+fn route_logs_to_stderr() {
+    let _ = tracing_subscriber::fmt()
+        .with_writer(std::io::stderr)
+        .try_init();
+}
+
 /// Start the LSP server over stdio. Shared by the `serve` verb and by a bare
 /// (arg-less) invocation of the binary — see `src/main.rs`.
 pub async fn start_stdio_server() {
+    route_logs_to_stderr();
     let (service, socket) = lsp_max::LspService::new(claude_code_config_lsp::Backend::new);
     let _ = lsp_max::Server::new(tokio::io::stdin(), tokio::io::stdout(), socket)
         .serve(service)
