@@ -14,9 +14,6 @@ use lsp_types_max::*;
 #[cfg(feature = "cargo-cicd")]
 use cargo_cicd_core::workspace::WorkspaceSnapshot;
 
-#[cfg(feature = "praxis")]
-use praxis::{AdmittedReceipt, Evidence};
-
 use crate::ocel_accumulator::{AccumulatedEvent, OcelAccumulator, OcelRelationship};
 
 /// The three layers a config file (agents, skills, etc.) can resolve from.
@@ -106,13 +103,19 @@ impl ClaudeCodeConfigBackend {
         AgentScope::Project
     }
 
-    fn make_finding_scoped(code: &str, message: &str, category: &str, scope: AgentScope) -> Finding {
+    fn make_finding_scoped(
+        code: &str,
+        message: &str,
+        category: &str,
+        scope: AgentScope,
+        range: Range,
+    ) -> Finding {
         let source = match scope {
             AgentScope::Global => "claude-code-config-lsp[global]",
             AgentScope::Plugin => "claude-code-config-lsp[plugin]",
             AgentScope::Project => "claude-code-config-lsp",
         };
-        make_finding_with_source(code, message, category, source)
+        make_finding_with_source(code, message, category, source, range)
     }
 
     fn emit_ocel_event(&self, activity: &str, uri: &str) {
@@ -132,9 +135,9 @@ impl ClaudeCodeConfigBackend {
     }
 }
 
-fn make_finding_with_source(code: &str, message: &str, category: &str, source: &'static str) -> Finding {
+fn make_finding_with_source(code: &str, message: &str, category: &str, source: &'static str, range: Range) -> Finding {
     let diag = Diagnostic {
-        range: Range::default(),
+        range,
         severity: Some(DiagnosticSeverity::WARNING),
         code: Some(NumberOrString::String(code.to_string())),
         source: Some(source.into()),
@@ -149,6 +152,37 @@ fn make_finding_with_source(code: &str, message: &str, category: &str, source: &
     (max, diag)
 }
 
+/// Convert a byte offset into `content` to an LSP `Position` (0-based line,
+/// UTF-16 code-unit character offset per the LSP spec's default position
+/// encoding). `offset` is clamped to `content.len()` so an analyzer-computed
+/// span that runs past EOF (e.g. an unclosed pattern match) can't panic.
+fn offset_to_position(content: &str, offset: usize) -> Position {
+    let offset = offset.min(content.len());
+    let mut line = 0u32;
+    let mut last_line_start = 0usize;
+    for (i, b) in content.as_bytes()[..offset].iter().enumerate() {
+        if *b == b'\n' {
+            line += 1;
+            last_line_start = i + 1;
+        }
+    }
+    let character = content[last_line_start..offset].encode_utf16().count() as u32;
+    Position::new(line, character)
+}
+
+/// Convert an analyzer's `(start, end)` byte-offset span into an LSP `Range`
+/// against `content`. A `(0, 0)` span (the sentinel some validators still use
+/// when they don't track real offsets — see `validate_settings_json_enums`,
+/// which parses through `serde_json::Value` and has none to give) yields
+/// `Range::default()`, i.e. line 0, column 0 — the same fallback every
+/// diagnostic used to hardcode unconditionally.
+fn span_to_range(content: &str, span: (usize, usize)) -> Range {
+    Range::new(
+        offset_to_position(content, span.0),
+        offset_to_position(content, span.1),
+    )
+}
+
 impl RulePackServer for ClaudeCodeConfigBackend {
     fn rule_packs(&self) -> &ValidatedRulePackSet { &self.packs }
     fn grammar(&self) -> tree_sitter::Language { tree_sitter_json::LANGUAGE.into() }
@@ -157,6 +191,27 @@ impl RulePackServer for ClaudeCodeConfigBackend {
     fn adapter(&self) -> &AutoLspAdapter { &self.adapter }
     fn workspace_index(&self) -> Option<&WorkspaceIndex> { Some(&self.index) }
     fn cross_file_rules(&self) -> &[CrossFileRule] { &self.cross_file_rules }
+
+    /// Extends the trait default (`text_document_sync` + `diagnostic_provider`,
+    /// the latter depending on `self.cross_file_rules()`) with the fields
+    /// `crate::capabilities::server_capabilities()` declares. Without this
+    /// override, `hover`/`completion`/`semantic_tokens_full` are fully
+    /// implemented below but never advertised, so no conforming client ever
+    /// calls them — that was true of every prior version of this file.
+    fn server_capabilities(&self) -> ServerCapabilities {
+        let has_cross_file =
+            !self.cross_file_rules().is_empty() || self.workspace_index().is_some();
+        ServerCapabilities {
+            text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
+            diagnostic_provider: Some(DiagnosticServerCapabilities::Options(DiagnosticOptions {
+                identifier: Some(self.server_name().to_string()),
+                inter_file_dependencies: has_cross_file,
+                workspace_diagnostics: has_cross_file,
+                work_done_progress_options: WorkDoneProgressOptions { work_done_progress: None },
+            })),
+            ..crate::capabilities::server_capabilities()
+        }
+    }
 
     // NOTE: this override reimplements scanning from scratch (it does not
     // call through to `RulePackServer`'s default `scan_uri_classified`), so
@@ -177,7 +232,10 @@ impl RulePackServer for ClaudeCodeConfigBackend {
         // scope tag + OCEL event that are LSP-server-specific here.
         let sync: Vec<Finding> = crate::scan::analyze_document(uri_str, content)
             .into_iter()
-            .map(|raw| Self::make_finding_scoped(&raw.code, &raw.message, raw.category, global))
+            .map(|raw| {
+                let range = span_to_range(content, raw.span);
+                Self::make_finding_scoped(&raw.code, &raw.message, raw.category, global, range)
+            })
             .collect();
 
         let finding_count = sync.len();
@@ -208,10 +266,12 @@ impl LanguageServer for ClaudeCodeConfigBackend {
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         self.emit_ocel_event("DocumentOpened", params.text_document.uri.as_str());
         self.handle_did_open(params).await;
+        self.publish_cross_file_diagnostics().await;
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         self.handle_did_change(params).await;
+        self.publish_cross_file_diagnostics().await;
     }
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
@@ -226,6 +286,35 @@ impl LanguageServer for ClaudeCodeConfigBackend {
     async fn completion(&self, params: CompletionParams) -> lsp_max::jsonrpc::Result<Option<CompletionResponse>> {
         self.emit_ocel_event("CompletionRequested", params.text_document_position.text_document.uri.as_str());
         crate::completion::completion(params).await
+    }
+
+    /// Pull-diagnostics (`textDocument/diagnostic`). The default trait impl
+    /// (`RulePackServer::pull_document_diagnostics`, rule_pack_server.rs:1047)
+    /// already does the real work — re-runs `scan_uri` against the adapter's
+    /// stored document — this override just wires it to the handler, which
+    /// no prior version of this file did.
+    async fn diagnostic(
+        &self,
+        params: DocumentDiagnosticParams,
+    ) -> lsp_max::jsonrpc::Result<DocumentDiagnosticReportResult> {
+        Ok(self.pull_document_diagnostics(&params.text_document.uri))
+    }
+
+    async fn semantic_tokens_full(
+        &self,
+        params: SemanticTokensParams,
+    ) -> lsp_max::jsonrpc::Result<Option<SemanticTokensResult>> {
+        let uri = &params.text_document.uri;
+        self.emit_ocel_event("SemanticTokensRequested", uri.as_str());
+        let tokens = self.adapter().get_document(uri, |doc| {
+            let local_doc = crate::semantic_tokens::Document::new(
+                doc.as_str().to_string(),
+                doc.tree.clone(),
+                None,
+            );
+            crate::semantic_tokens::build_tokens(&local_doc)
+        });
+        Ok(tokens.map(SemanticTokensResult::Tokens))
     }
 
     /// Serves this server's `claude-config://` virtual documents (currently
@@ -245,26 +334,29 @@ impl LanguageServer for ClaudeCodeConfigBackend {
         Ok(lsp_max::max_protocol::lsp_3_18::TextDocumentContentResult { text })
     }
 
-    #[cfg(feature = "praxis")]
+    /// `workspace/executeCommand`. Previously gated behind `#[cfg(feature =
+    /// "praxis")]` — a feature never declared in `Cargo.toml`, whose body
+    /// referenced `praxis::{AdmittedReceipt, Evidence}` (not a dependency)
+    /// and `praxis_retrofit::audit_workspace()` (never imported at all). That
+    /// code had never compiled and would not have if the feature were
+    /// enabled, so `workspace/executeCommand` was unconditionally
+    /// unimplemented. Replaced with a real, always-compiled handler: the
+    /// conformance audit now returns `crate::conformance::conformance_vector()`
+    /// directly (no cryptographic receipt signing — that required the
+    /// nonexistent `praxis` dependency; re-add signing only once a real
+    /// `praxis` crate is actually vendored).
     async fn execute_command(&self, params: ExecuteCommandParams) -> lsp_max::jsonrpc::Result<Option<serde_json::Value>> {
         self.emit_ocel_event("ExecuteCommand", &params.command);
 
         match params.command.as_str() {
             "claude-code-config/conformanceAudit" => {
-                // Call praxis_retrofit::audit_workspace() to validate project structure
-                let _audit_result = praxis_retrofit::audit_workspace().await;
-
-                // Wrap the conformance vector from src/conformance.rs as Evidence
                 let conformance = crate::conformance::conformance_vector();
-                let evidence: Evidence<_, _, _> = Evidence::new(conformance);
-
-                // Create an AdmittedReceipt with cryptographic signing
-                let receipt = AdmittedReceipt::sign(evidence);
-
-                self.emit_ocel_event("ConformanceAudit", "compliance_receipt_issued");
-
-                // Return the receipt as JSON
-                Ok(Some(serde_json::to_value(receipt).unwrap_or(serde_json::Value::Null)))
+                self.emit_ocel_event("ConformanceAudit", "conformance_vector_returned");
+                Ok(Some(serde_json::to_value(conformance).unwrap_or(serde_json::Value::Null)))
+            }
+            #[cfg(feature = "cargo-cicd")]
+            "claude-code-config/cicdStatus" => {
+                Ok(Some(self.handle_cicd_status_command()))
             }
             _ => {
                 self.client
@@ -339,7 +431,7 @@ mod andon_diagnostic_tests {
     /// verification described in docs/v26.7.3-PRD-ARD.md before shipping.
     #[test]
     fn findings_never_emit_error_severity_today() {
-        let (_max, diag) = make_finding_with_source("CCC-TEST-001", "test message", "json", "claude-code-config-lsp");
+        let (_max, diag) = make_finding_with_source("CCC-TEST-001", "test message", "json", "claude-code-config-lsp", Range::default());
         assert_ne!(
             diag.severity,
             Some(DiagnosticSeverity::ERROR),
@@ -358,9 +450,30 @@ mod andon_diagnostic_tests {
                 "test message",
                 "claude_md",
                 scope,
+                Range::default(),
             );
             assert_ne!(diag.severity, Some(DiagnosticSeverity::ERROR));
         }
+    }
+
+    #[test]
+    fn span_to_range_converts_byte_offsets_to_line_and_utf16_column() {
+        let content = "line0\nline1 \u{1F600} rest";
+        // "rest" starts after "line1 😀 " — 😀 is 2 UTF-16 code units, 4 UTF-8 bytes.
+        let byte_offset = content.find("rest").unwrap();
+        let range = span_to_range(content, (byte_offset, byte_offset + 4));
+        assert_eq!(range.start.line, 1);
+        assert_eq!(range.end.line, 1);
+        // "line1 " (6 chars) + surrogate pair (2 code units) + " " (1) = 9.
+        assert_eq!(range.start.character, 9);
+        assert_ne!(range, Range::default(), "a non-zero span must not collapse to 0:0");
+    }
+
+    #[test]
+    fn zero_span_still_yields_default_range() {
+        // The sentinel some validators use when they have no real offset
+        // (validate_settings_json_enums parses through serde_json::Value).
+        assert_eq!(span_to_range("anything", (0, 0)), Range::default());
     }
 
     // Found via dogfooding: settings.local.json didn't match

@@ -714,11 +714,71 @@ mod tests {
         assert_eq!(surface_of("/x/hooks/h.sh"), "hook");
     }
 
+    /// A self-contained fixture directory covering every config surface
+    /// `build_tree`/`usage_report` recognize, so these tests don't depend on
+    /// this repo's own live `.claude/` tree. Prior versions called
+    /// `build_tree(".")`/`usage_report(".")` directly against the repo root,
+    /// which broke whenever `.claude/agents/*.md` was absent (e.g. mid
+    /// uncommitted deletion) — a test coupled to filesystem state outside
+    /// its control rather than a fixture it owns. Removed automatically via
+    /// `Drop`.
+    struct FixtureRepo {
+        dir: PathBuf,
+    }
+
+    impl FixtureRepo {
+        fn new(name: &str) -> Self {
+            let dir = std::env::temp_dir().join(format!(
+                "ccc-lsp-inventory-test-{name}-{}-{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_nanos())
+                    .unwrap_or(0)
+            ));
+            let write = |rel: &str, content: &str| {
+                let path = dir.join(rel);
+                std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+                std::fs::write(&path, content).unwrap();
+            };
+            write(
+                ".claude/settings.json",
+                r#"{"model": "sonnet", "hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "${CLAUDE_PROJECT_DIR}/hooks/session-start.sh"}]}]}}"#,
+            );
+            write(
+                ".claude-plugin/plugin.json",
+                r#"{"$schema": "https://json.schemastore.org/claude-code-plugin.json"}"#,
+            );
+            write(
+                ".claude/agents/worker.md",
+                "---\nname: worker\ndescription: A fixture agent.\n---\nDo the work.\n",
+            );
+            write(
+                ".claude/skills/example/SKILL.md",
+                "---\nname: example\ndescription: A fixture skill.\n---\nExample skill body.\n",
+            );
+            write(".claude/lsp-max-auto.toml", "edition = \"2024\"\nversion = \"26.7.3\"\n");
+            write("hooks/session-start.sh", "#!/bin/sh\necho fixture\n");
+            write(".mcp.json", r#"{"mcpServers": {"example": {"command": "example-mcp"}}}"#);
+            Self { dir }
+        }
+
+        fn path(&self) -> &str {
+            self.dir.to_str().unwrap()
+        }
+    }
+
+    impl Drop for FixtureRepo {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.dir);
+        }
+    }
+
     #[test]
     fn build_tree_on_this_repo_covers_surfaces() {
-        let tree = build_tree(".");
+        let fixture = FixtureRepo::new("build-tree");
+        let tree = build_tree(fixture.path());
         let surfaces: BTreeSet<&str> = tree.files.iter().map(|f| f.surface).collect();
-        // Representative surfaces this repo is known to contain.
         for expected in ["settings.json", "plugin.json", "agent", "skill", "toml", "hook", "mcp.json"] {
             assert!(surfaces.contains(expected), "missing surface {expected} in export tree");
         }
@@ -733,15 +793,14 @@ mod tests {
 
     #[test]
     fn usage_report_flags_orphaned_skills_and_agents() {
-        let report = usage_report(".");
-        // The 5 project-local skills under .claude/skills are undeclared.
+        let fixture = FixtureRepo::new("usage-report");
+        let report = usage_report(fixture.path());
+        // The fixture skill and agent are on disk but not declared in plugin.json.
         assert!(report.orphaned_on_disk.iter().any(|i| i.surface == "skill"));
         assert!(report.orphaned_on_disk.iter().any(|i| i.surface == "agent"));
-        // The declared validate-config skill resolves under .claude-plugin/, so
-        // it must NOT appear as declared-but-missing.
         assert!(
             report.declared_but_missing.iter().all(|i| !i.path_or_key.contains("validate-config")),
-            "validate-config resolves on disk and should not be reported missing"
+            "fixture declares nothing named validate-config"
         );
         assert!(report.total_items > 0);
         assert_eq!(

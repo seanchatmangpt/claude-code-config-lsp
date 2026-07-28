@@ -52,7 +52,7 @@ pub fn build_schema() -> SchemaRegistry {
             fields: Vec::new(),
             law_status: "CANDIDATE".to_string(),
         });
-        settings.fields.push(("model".to_string(), FieldType { name: "enum: opus | sonnet | haiku | fable | claude-opus-4-8 | claude-sonnet-4-6 | claude-haiku-4-5-20251001".to_string(), is_optional: true, stability: "stable".to_string() }));
+        settings.fields.push(("model".to_string(), FieldType { name: "enum: opus | sonnet | haiku | fable | claude-opus-5 | claude-sonnet-5 | claude-fable-5 | claude-haiku-4-5-20251001".to_string(), is_optional: true, stability: "stable".to_string() }));
         settings.fields.push(("effortLevel".to_string(), FieldType { name: "enum: low | medium | high | xhigh | max".to_string(), is_optional: true, stability: "stable".to_string() }));
         settings.fields.push(("permissions".to_string(), FieldType { name: "object".to_string(), is_optional: true, stability: "stable".to_string() }));
         settings.fields.push(("hooks".to_string(), FieldType { name: "object[hookEvent → array]".to_string(), is_optional: true, stability: "stable".to_string() }));

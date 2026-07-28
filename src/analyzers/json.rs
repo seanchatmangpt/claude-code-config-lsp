@@ -228,7 +228,8 @@ mod tests {
 
     #[test] fn invalid_model_fires_ccc_json_004() { let i = r#"{"model": "gpt-4"}"#; assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-004")); }
     #[test] fn valid_model_sonnet_clean() { let i = r#"{"model": "sonnet"}"#; assert!(validate_settings_json_enums(i).is_empty()); }
-    #[test] fn valid_model_full_id_clean() { let i = r#"{"model": "claude-sonnet-4-6"}"#; assert!(validate_settings_json_enums(i).is_empty()); }
+    #[test] fn valid_model_full_id_clean() { let i = r#"{"model": "claude-sonnet-5"}"#; assert!(validate_settings_json_enums(i).is_empty()); }
+    #[test] fn retired_model_full_id_fires_ccc_json_004() { let i = r#"{"model": "claude-sonnet-4-6"}"#; assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-004")); }
     #[test] fn invalid_effort_fires_ccc_json_005() { let i = r#"{"effortLevel": "extreme"}"#; assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-005")); }
     #[test] fn valid_effort_max_clean() { let i = r#"{"effortLevel": "max"}"#; assert!(validate_settings_json_enums(i).is_empty()); }
     #[test] fn invalid_permission_mode_fires_ccc_json_006() { let i = r#"{"permissionMode": "unsafe"}"#; assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-006")); }
@@ -319,7 +320,7 @@ const VALID_MCP_SERVER_TYPES: &[&str] = &["stdio", "sse"];
 /// Valid model values for settings.json `model` field.
 const VALID_MODELS: &[&str] = &[
     "opus", "sonnet", "haiku", "fable",
-    "claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5-20251001",
+    "claude-opus-5", "claude-sonnet-5", "claude-fable-5", "claude-haiku-4-5-20251001",
 ];
 
 /// Valid effortLevel values.

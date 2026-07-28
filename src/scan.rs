@@ -20,11 +20,17 @@ use crate::analyzers::toml::{TomlAnalyzer, ReplayableAnalyzer as TomlReplayable}
 
 /// A diagnostic produced by [`analyze_document`], flattened to the fields both
 /// callers need. `category` mirrors the `kind` returned by [`classify`].
+/// `span` is the byte offset range `(start, end)` into `content`, taken
+/// verbatim from the analyzer's `RawFinding` — every analyzer computes a real
+/// span (see e.g. `analyzers/json.rs`'s `RawFinding`), but until this field
+/// existed it was dropped on the floor and every diagnostic collapsed to
+/// LSP range 0:0 regardless of where the actual problem was.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ScanFinding {
     pub code: String,
     pub message: String,
     pub category: &'static str,
+    pub span: (usize, usize),
 }
 
 /// Classify a URI or filesystem path to the analyzer family that applies.
@@ -68,8 +74,8 @@ pub fn classify(uri_or_path: &str) -> &'static str {
 pub fn analyze_document(uri_or_path: &str, content: &str) -> Vec<ScanFinding> {
     let kind = classify(uri_or_path);
     let mut out: Vec<ScanFinding> = Vec::new();
-    let push = |out: &mut Vec<ScanFinding>, code: String, message: String, category: &'static str| {
-        out.push(ScanFinding { code, message, category });
+    let push = |out: &mut Vec<ScanFinding>, code: String, message: String, category: &'static str, span: (usize, usize)| {
+        out.push(ScanFinding { code, message, category, span });
     };
 
     match kind {
@@ -83,7 +89,7 @@ pub fn analyze_document(uri_or_path: &str, content: &str) -> Vec<ScanFinding> {
             // validate_skill_frontmatter already does the correct,
             // name-field-scoped check.
             for raw in validate_skill_frontmatter(content) {
-                push(&mut out, raw.code, raw.message, "skill");
+                push(&mut out, raw.code, raw.message, "skill", raw.span);
             }
         }
         "claude_md" => {
@@ -94,41 +100,41 @@ pub fn analyze_document(uri_or_path: &str, content: &str) -> Vec<ScanFinding> {
             // mention of Claude Code in a CLAUDE.md body. Same rationale as the
             // "skill" branch skip above.
             for raw in validate_claude_md(content) {
-                push(&mut out, raw.code, raw.message, "claude_md");
+                push(&mut out, raw.code, raw.message, "claude_md", raw.span);
             }
         }
         "agent" => {
             for raw in validate_agent_frontmatter(content) {
-                push(&mut out, raw.code, raw.message, "agent");
+                push(&mut out, raw.code, raw.message, "agent", raw.span);
             }
             for raw in FrontmatterReplayable::analyze(&FrontmatterAnalyzer::new(), content) {
-                push(&mut out, raw.code, raw.message, "agent");
+                push(&mut out, raw.code, raw.message, "agent", raw.span);
             }
         }
         "json" => {
             for raw in JsonReplayable::analyze(&JsonAnalyzer::new(), content) {
-                push(&mut out, raw.code, raw.message, "json");
+                push(&mut out, raw.code, raw.message, "json", raw.span);
             }
             let lower = uri_or_path.to_lowercase();
             if lower.ends_with("settings.json") || lower.ends_with("settings.local.json") {
                 for raw in validate_settings_json_enums(content) {
-                    push(&mut out, raw.code, raw.message, "json");
+                    push(&mut out, raw.code, raw.message, "json", raw.span);
                 }
             }
             if lower.ends_with("plugin.json") {
                 for raw in validate_plugin_json(content) {
-                    push(&mut out, raw.code, raw.message, "json");
+                    push(&mut out, raw.code, raw.message, "json", raw.span);
                 }
             }
         }
         "toml" => {
             for raw in TomlReplayable::analyze(&TomlAnalyzer::new(), content) {
-                push(&mut out, raw.code, raw.message, "toml");
+                push(&mut out, raw.code, raw.message, "toml", raw.span);
             }
         }
         "hook" => {
             for raw in HookReplayable::analyze(&HookAnalyzer::new(), content) {
-                push(&mut out, raw.code, raw.message, "hook");
+                push(&mut out, raw.code, raw.message, "hook", raw.span);
             }
         }
         _ => {}

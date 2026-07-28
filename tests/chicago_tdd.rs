@@ -139,7 +139,7 @@ fn test_validate_settings_json_enums_valid_with_model_sonnet() {
 #[test]
 fn test_validate_settings_json_enums_valid_full_model_id() {
     // Arrange
-    let input = r#"{"model": "claude-sonnet-4-6"}"#;
+    let input = r#"{"model": "claude-sonnet-5"}"#;
 
     // Act
     let findings = json::validate_settings_json_enums(input);

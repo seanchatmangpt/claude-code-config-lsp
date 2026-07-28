@@ -143,14 +143,87 @@ fn analyze_document_unknown_surface_is_clean() {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// inventory::build_tree — export state over the real repo
+// A self-contained fixture repo covering every config surface, plus the
+// "everything resolves cleanly" invariants `usage_report_flags_orphans_
+// without_false_positives` asserts (declared skill resolves, the one hook is
+// referenced, every settings key recognized). Previously these tests called
+// `inventory::build_tree(".")` / `inventory::usage_report(".")` directly
+// against the live repo, which broke whenever `.claude/agents/*.md` was
+// absent from the working tree (e.g. mid uncommitted deletion) — a test
+// coupled to filesystem state outside its control. Mirrors the equivalent
+// fixture already added to `src/inventory.rs`'s own unit tests, and the
+// temp-dir idiom `conformance_report_calculates_correct_score_and_tracks_
+// surfaces` below already uses.
+// ────────────────────────────────────────────────────────────────────────────
+
+struct FixtureRepo {
+    dir: std::path::PathBuf,
+}
+
+impl FixtureRepo {
+    fn new(name: &str) -> Self {
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("ccc_lsp_inventory_it_{name}_{ts}"));
+        let write = |rel: &str, content: &str| {
+            let path = dir.join(rel);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, content).unwrap();
+        };
+        write(
+            ".claude/settings.json",
+            r#"{"model": "sonnet", "hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "${CLAUDE_PROJECT_DIR}/hooks/session-start.sh"}]}]}}"#,
+        );
+        write(
+            ".claude-plugin/plugin.json",
+            r#"{
+                "$schema": "https://json.schemastore.org/claude-code-plugin.json",
+                "skills": {
+                    "validate-config": {"path": "skills/validate-config/SKILL.md"}
+                }
+            }"#,
+        );
+        write(
+            ".claude-plugin/skills/validate-config/SKILL.md",
+            "---\nname: validate-config\ndescription: Fixture declared skill.\n---\nBody.\n",
+        );
+        write(
+            ".claude/agents/worker.md",
+            "---\nname: worker\ndescription: A fixture agent.\n---\nDo the work.\n",
+        );
+        write(
+            ".claude/skills/undeclared/SKILL.md",
+            "---\nname: undeclared\ndescription: An undeclared fixture skill.\n---\nBody.\n",
+        );
+        write(".claude/lsp-max-auto.toml", "edition = \"2024\"\nversion = \"26.7.3\"\n");
+        write("hooks/session-start.sh", "#!/bin/sh\necho fixture\n");
+        write(".mcp.json", r#"{"mcpServers": {"example": {"command": "example-mcp"}}}"#);
+        Self { dir }
+    }
+
+    fn path(&self) -> &str {
+        self.dir.to_str().unwrap()
+    }
+}
+
+impl Drop for FixtureRepo {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.dir);
+    }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// inventory::build_tree — export state over a fixture repo
 // ────────────────────────────────────────────────────────────────────────────
 
 #[test]
 fn build_tree_covers_expected_surfaces_and_parses_json() {
-    // Arrange — the real workspace (cargo test runs from the crate root).
+    // Arrange
+    let fixture = FixtureRepo::new("build_tree");
     // Act
-    let tree = inventory::build_tree(".");
+    let tree = inventory::build_tree(fixture.path());
 
     // Assert — file_count is consistent with the node list.
     assert_eq_msg!(
@@ -209,8 +282,10 @@ fn usage_report_percent_within_bounds_and_invariant_holds() {
 
 #[test]
 fn usage_report_flags_orphans_without_false_positives() {
-    // Arrange / Act
-    let report = inventory::usage_report(".");
+    // Arrange
+    let fixture = FixtureRepo::new("orphans");
+    // Act
+    let report = inventory::usage_report(fixture.path());
 
     // Assert — project-local skills and agents are surfaced as orphaned-on-disk.
     assert!(

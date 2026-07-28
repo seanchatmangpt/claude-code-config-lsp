@@ -335,7 +335,7 @@ ccc:settings_model
     ccc:fieldSurface ccc:SettingsJson ;
     ccc:fieldType "enum" ;
     ccc:fieldRequired "false"^^xsd:boolean ;
-    ccc:fieldEnumValues "opus sonnet haiku fable opus-4-8 sonnet-4-6 haiku-4-5" ;
+    ccc:fieldEnumValues "opus sonnet haiku fable claude-opus-5 claude-sonnet-5 claude-fable-5 claude-haiku-4-5-20251001" ;
     ccc:fieldDescription "Default Claude model to use for agent invocation." .
 
 ccc:settings_permissions
