@@ -1,0 +1,5 @@
+# Signing keys are per checkout and never committed (fleet rotation 2026-09-24,
+# docs/security/signing-key-rotation-v26.9.24.md). A tracked public half without its
+# private half makes a fresh clone's first ggen sync refuse [FM-KEY-010/011].
+signing.key
+verifying.key
