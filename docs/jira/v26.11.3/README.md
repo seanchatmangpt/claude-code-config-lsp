@@ -63,6 +63,86 @@ p3-rename-inlay, p4-lens-signature, p5-formatting, p6-selection-highlight,
 p7-hierarchy-moniker, p8-delta-color, p9-commands, p10-ttl-reconciliation,
 p12-wiring, x2-pin-bump, x5-smalt-core-manifest.
 
+## Full receipts index (zd-25, 2026-11-04)
+
+One row per file on disk in `receipts/` (69 files). Subject = first non-empty
+body line; standing = first ALIVE/PARTIAL/BLOCKED/UNVERIFIED/PASS token found
+in the file, UNSTATED if none. This supersedes the pointer-only legacy list
+above — the register of truth for legacy rows remains closure/c-wave-close.md.
+
+| receipt | file | subject | standing |
+|---|---|---|---|
+| ab-18-relay-stress | receipts/ab-18-relay-stress.md | AB-18 — Compositor relay stress (STRESS lane receipt) | ALIVE |
+| af-23-h4-wiring | receipts/af-23-h4-wiring.md | AF-23 — H4 standing-diagnostics publish wiring (IMPLEMENTATION lane receipt) | ALIVE |
+| c1-acceptance | receipts/c1-acceptance.md | C1 Acceptance Receipt — conformance/receipt/fix CLI verbs | ALIVE |
+| c10-readme-langid | receipts/c10-readme-langid.md | Receipt: c10-readme-langid (v26.11.3) | PARTIAL |
+| c11-goldens | receipts/c11-goldens.md | C11 — Diagnostic goldens receipt | ALIVE |
+| c2-json-spans | receipts/c2-json-spans.md | C2: JSON analyzer real spans (de-sentinel) | ALIVE |
+| c3-position-aware | receipts/c3-position-aware.md | Receipt: C3 — position-aware completion/hover (claude-code-config-lsp) | PARTIAL |
+| c4-markdown-nav | receipts/c4-markdown-nav.md | C4 Receipt: Markdown Navigation (documentSymbol / foldingRange / documentLink) | ALIVE |
+| c5-protocol | receipts/c5-protocol.md | Receipt: C5 protocol round-trip suite (claude-code-config-lsp) | ALIVE |
+| c6-evidence-layer | receipts/c6-evidence-layer.md | C6 — Evidence Layer Receipt (praxis Evidence + receipt chain + conformance/coverage/declare) | ALIVE |
+| c7-bcinr-parity | receipts/c7-bcinr-parity.md | Receipt: C7 — bcinr SIMD vs naive parity | ALIVE |
+| c9-schema-expansion | receipts/c9-schema-expansion.md | C9 Schema Expansion Receipt — settings.json key inventory | BLOCKED |
+| cfl-1 | receipts/cfl-1.md | CFL-1 Implementation Lane Receipt (G1 + G2) | ALIVE |
+| cl-a-smalt-layout | receipts/cl-a-smalt-layout.md | CL-A: smalt-core-pack layout (ONTOLOGY_SOURCE_MISSING unblock) | ALIVE |
+| cl-b-c9-court | receipts/cl-b-c9-court.md | cl-b-c9 — schema_expansion court rustfmt-stability receipt | ALIVE |
+| cl-c-clippy | receipts/cl-c-clippy.md | cl-c-clippy — clippy -D warnings gate (lane cl-c, v26.11.3) | ALIVE |
+| cl-l-writev | receipts/cl-l-writev.md | cl-l-writev — StreamWriter writev / UDS witness (lane cl-l, v26.11.3) | ALIVE |
+| cl-m-dogfood-fix | receipts/cl-m-dogfood-fix.md | Receipt: cl-m-dogfood-fix — dogfood_compositor.mjs arg-parse + rebuild gate + de-stale BLOCKED peers | BLOCKED |
+| cl-t-wiring-verify | receipts/cl-t-wiring-verify.md | CL-T — post-I4 provider wiring verification (receipt) | ALIVE |
+| cl-u-smalt-qual | receipts/cl-u-smalt-qual.md | CL-U: smalt-core-pack qualification (post-CL-A unblock) | ALIVE |
+| e80-06 | receipts/e80-06.md | e80-06 | ALIVE |
+| e80-07 | receipts/e80-07.md | e80-07 — ipc body integrity at the framing layer (RAISE) | PASS |
+| f3-registry-ontology | receipts/f3-registry-ontology.md | F3 — registry ontology-first generation receipt | ALIVE |
+| f4-notification-dispatch | receipts/f4-notification-dispatch.md | F4: Client notification dispatch — M12 falsifier flip | BLOCKED |
+| ga4-cgap-arrow | receipts/ga4-cgap-arrow.md | GA4 cgap-arrow Import Primitives Receipt | ALIVE |
+| h1-harness-docs | receipts/h1-harness-docs.md | H1 Receipt: harness virtual documents | UNVERIFIED |
+| h2-ops-matrix | receipts/h2-ops-matrix.md | Receipt: H2 operations matrix (claude-code-config-lsp) | ALIVE |
+| h3-packaging | receipts/h3-packaging.md | H3 Packaging/Compositor Receipt — v26.11.3 | ALIVE |
+| h4-standing | receipts/h4-standing.md | H4 Standing Lane Receipt | ALIVE |
+| h5-overlay | receipts/h5-overlay.md | H5 — Settings Overlay Intelligence (IMPLEMENTATION lane receipt) | ALIVE |
+| i2-json003 | receipts/i2-json003.md | I2 — CCC-JSON-003 implementation lane receipt | ALIVE |
+| i3-tokens-substrate | receipts/i3-tokens-substrate.md | I3 — Semantic-Tokens Substrate Fix (generated classifier hand-correction) | ALIVE |
+| i4-sync-restore | receipts/i4-sync-restore.md | I4: Sync Restore — Three-Zone Law Executed (receipt) | PARTIAL |
+| i7-delta-boundary | receipts/i7-delta-boundary.md | I7 — Delta-Encoding Boundary Fix (encode_abs continuation seed) | ALIVE |
+| k4-md-rules | receipts/k4-md-rules.md | K4 — CCC-MD golden-gap closure receipt | ALIVE |
+| l1-version-bump | receipts/l1-version-bump.md | L1 — Version bump 26.7.3 → 26.11.3 (all 7 workspace crates) | ALIVE |
+| l2-docs-bump | receipts/l2-docs-bump.md | L2 Docs Version Bump — Receipt (v26.11.3) | ALIVE |
+| m1-schema | receipts/m1-schema.md | M1 — Compositor Manifest Schema Extraction + Manifest Fix | PASS |
+| m10-e2e | receipts/m10-e2e.md | M10: Compositor front-door end-to-end test — Claude-Code-shaped LSP loop | PASS |
+| m11-registration | receipts/m11-registration.md | Receipt: M11 — compositor registered as Claude Code front door | ALIVE |
+| m12-dogfood | receipts/m12-dogfood.md | M12 — Dogfood Through the Compositor (scripts/dogfood_compositor.mjs) | BLOCKED |
+| m13-docs | receipts/m13-docs.md | M13 — compositor documentation receipt | ALIVE |
+| m2-registry-gen | receipts/m2-registry-gen.md | M2 Receipt: compositor registry regeneration (lsp-max gen.toml rule) | PASS |
+| m3-build | receipts/m3-build.md | M3 Build Receipt — lsp-max-compositor | PASS |
+| m4-routing | receipts/m4-routing.md | M4 Routing Dispatch — Receipt | ALIVE |
+| m5-merge | receipts/m5-merge.md | Receipt: m5-merge — FanAll diagnostics merge semantics | ALIVE |
+| m6-arbitration | receipts/m6-arbitration.md | M6 — Request Arbitration Tests | PARTIAL |
+| m7-andon | receipts/m7-andon.md | M7 Receipt — andon_code_prefixes compositor tests | ALIVE |
+| m8-crash | receipts/m8-crash.md | M8 — Compositor child-crash isolation (IMPLEMENTATION lane receipt) | PASS |
+| m9-priority | receipts/m9-priority.md | M9 Receipt — Priority Semantics (diagnostics-only vs full) | ALIVE |
+| p1-navigation | receipts/p1-navigation.md | P1 Navigation Lane Receipt (v26.11.3) | UNSTATED |
+| p10-ttl-reconciliation | receipts/p10-ttl-reconciliation.md | P10 — TTL Reconciliation Receipt | ALIVE |
+| p12-wiring | receipts/p12-wiring.md | P12 — provider wiring receipt (integration wave input) | UNSTATED |
+| p2-ws-symbols | receipts/p2-ws-symbols.md | P2 workspace/symbol Receipt | ALIVE |
+| p3-rename-inlay | receipts/p3-rename-inlay.md | Receipt: P3 rename + inlay lane | PASS |
+| p4-lens-signature | receipts/p4-lens-signature.md | Receipt: p4-lens-signature | ALIVE |
+| p5-formatting | receipts/p5-formatting.md | Receipt: P5 — document/range/on-type formatting for JSON config surfaces | UNVERIFIED |
+| p6-selection-highlight | receipts/p6-selection-highlight.md | Receipt: P6 — selectionRange + documentHighlight (JSON & markdown) | ALIVE |
+| p7-hierarchy-moniker | receipts/p7-hierarchy-moniker.md | Receipt: P7 — Call hierarchy + monikers for config surfaces | ALIVE |
+| p8-delta-color | receipts/p8-delta-color.md | P8 Receipt: semantic-tokens delta + documentColor (v26.11.3) | ALIVE |
+| p9-commands | receipts/p9-commands.md | Receipt: P9 — slash-command surface (commands analyzer) | ALIVE |
+| r1-admission | receipts/r1-admission.md | R1 — admission-controller lane receipt | PARTIAL |
+| r2-multiplex-real | receipts/r2-multiplex-real.md | R2 Multiplex Real LSPs Receipt | ALIVE |
+| r80-13 | receipts/r80-13.md | r80-13 — ggen-lsp compositor child registration (IMPLEMENTATION lane) | UNSTATED |
+| sa-9 | receipts/sa-9.md | SA-9 — ggen regeneration-stability court (GGM-SRC-002 / TX-9) | ALIVE |
+| x2-pin-bump | receipts/x2-pin-bump.md | X2 — lsp-max pin bump 26.7.3 → 26.11.3 (config-lsp consumer) | ALIVE |
+| x5-smalt-core-manifest | receipts/x5-smalt-core-manifest.md | X5: smalt-core-pack manifest (MANIFEST_MISSING unblock) | PARTIAL |
+| xd-16-relay-standing | receipts/xd-16-relay-standing.md | XD-16 — Relay-path standing-unverified reds (root-cause + fix receipt) | ALIVE |
+| xd-9-release-bin-env | receipts/xd-9-release-bin-env.md | XD-9: Release Binary Environment Repair (XA-5 Finding) | ALIVE |
+| zd-25-index | receipts/zd-25-index.md | ZD-25 — receipts-dir index receipt (v26.11.3) | ALIVE |
+
 ## See Also
 
 - `closure/c-wave-close.md` — full C-wave closure record (per-target exits, residuals, verdict)
