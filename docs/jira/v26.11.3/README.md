@@ -43,7 +43,25 @@ lane), never from memory. Exit record law: A gate is witnessed by an exit record
 | CL-T | receipts/cl-t-wiring-verify.md | ALIVE | cargo build exit 0; --lib 264 passed / 0 failed; protocol_roundtrip 3 passed / 0 failed; dogfood.mjs exit 0 |
 | CL-U | receipts/cl-u-smalt-qual.md | ALIVE (contracted scope; pack projection not witnessed — templates/ empty) | qualify_packs.py exit 0 twice, byte-identical replay. Subject repo /Users/sac/ggen-marketplace |
 | e80-06 | receipts/e80-06.md | ALIVE | stream_writer_type_test 7 courts green, exit 0. Subject repo /Users/sac/cgap; receipt hosted in config-lsp's wave tree; cgap has no v26.11.3 wave tree — pointer-only, no relocation |
-| e80-07 | receipts/e80-07.md | ALIVE | ipc_body_integrity_test 5/5 green. Subject repo /Users/sac/cgap; receipt hosted in config-lsp's wave tree; cgap has no v26.11.3 wave tree — pointer-only, no relocation |
+| e80-07 | receipts/e80-07.md | ALIVE | ipc_body_integrity_test 5/5 green. Subject repo /Users/sac/cgap; receipt hosted in config-lsp's wave tree; cgap now has its own index at /Users/sac/cgap/docs/jira/v26.11.3/README.md (created cl-close-2) |
+| CFL-1 | receipts/cfl-1.md | lane complete, ready for coordinator integration (standing word per receipt body) | ttl_reconciliation "13 passed; 0 failed"; commands_dispatch "12 passed; 0 failed"; diagnostic_goldens "19 passed; 0 failed"; compositor_e2e "2 passed; 0 failed"; full `cargo test` "591 passed, 0 failed across 33 suites", exit 0 |
+| SA-9 | receipts/sa-9.md | ALIVE | `ggen sync run` exit 0, `written: []`, all six tracked generated files byte-identical; cargo test 591 passed / 0 failed (CFL-1 baseline); clippy -D warnings per receipt |
+
+## Legacy receipts predating this README (pointer-only, cl-close-2)
+
+37 receipts landed in `receipts/` before this README existed; their register
+of truth is closure/c-wave-close.md (per-receipt exits, residuals, verdict).
+Disclosed pointer-only: not re-indexed per-receipt in this pass (cl-close-2
+retro-index decision). Files on disk (census 2026-11-03):
+
+f3-registry-ontology, f4-notification-dispatch, ga4-cgap-arrow, h1-harness-docs,
+h2-ops-matrix, h3-packaging, h4-standing, h5-overlay, i4-sync-restore,
+l1-version-bump, l2-docs-bump, m1-schema, m2-registry-gen, m3-build,
+m4-routing, m5-merge, m6-arbitration, m7-andon, m8-crash, m9-priority,
+m10-e2e, m11-registration, m12-dogfood, m13-docs, p1-navigation, p2-ws-symbols,
+p3-rename-inlay, p4-lens-signature, p5-formatting, p6-selection-highlight,
+p7-hierarchy-moniker, p8-delta-color, p9-commands, p10-ttl-reconciliation,
+p12-wiring, x2-pin-bump, x5-smalt-core-manifest.
 
 ## See Also
 
