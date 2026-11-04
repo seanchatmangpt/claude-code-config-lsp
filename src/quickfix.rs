@@ -3,17 +3,17 @@
 //! its replacement is unit-testable without spinning up an LSP session.
 //!
 //! Scope note: only diagnostics that carry a REAL byte span can be safely
-//! turned into a `TextEdit` that replaces the offending text — `CCC-JSON-001`
+//! turned into a `TextEdit` that replaces the offending text. `CCC-JSON-001`
 //! and `CCC-JSON-002` come from the pattern-matched `ReplayableAnalyzer`
 //! (real spans, see `analyzers/json.rs`'s `analyze_rule_naive`). The
-//! `serde_json::Value`-based enum validators (`CCC-JSON-004/005/006`, model/
-//! effortLevel/permissionMode) still emit a `(0, 0)` span (documented in
-//! `scan.rs`'s `ScanFinding`), so they are NOT wired here — offering a
-//! "quick fix" that replaces line 0, column 0 regardless of where the
-//! invalid value actually is would silently corrupt an unrelated part of the
-//! document. Closing that gap requires tracking real offsets through
-//! `serde_json::Value` first (Phase 2 of the roadmap), not a code-action
-//! trick.
+//! `serde_json::Value`-based enum validators (`CCC-JSON-004`–`CCC-JSON-013`,
+//! `CCC-HOOK-001/004`) now ALSO emit real byte spans — `analyzers/json.rs`
+//! re-locates the offending key node in the tree-sitter-json parse tree
+//! (`ts_key_span`/`ts_root_span`), so a `(0, 0)` span there is only a
+//! defensive fallback for a tree-sitter parse failure on JSON serde accepted.
+//! Wiring quick fixes for those codes remains out of scope here (fix-text
+//! mapping is per-code work, not a span concern); this note only records that
+//! the span precondition they previously failed is now satisfied.
 
 /// Exact `message_prefix` strings from `analyzers::json::settings_json_rules()`
 /// — MUST stay byte-for-byte identical to what produces the diagnostic
@@ -24,7 +24,9 @@ const HOOK_KEY_PREFIX: &str = "Wrong hook key format — use hooks.PreToolUse / 
 /// For a `CCC-JSON-001` diagnostic message, the replacement key name — always
 /// `mcpServers`, the one correct spelling all three deprecated keys map to.
 pub fn deprecated_key_replacement(message: &str) -> Option<&'static str> {
-    let matched = message.strip_prefix(DEPRECATED_KEY_PREFIX)?.strip_prefix(": ")?;
+    let matched = message
+        .strip_prefix(DEPRECATED_KEY_PREFIX)?
+        .strip_prefix(": ")?;
     match matched {
         "enabledMcpjsonServers" | "disabledMcpjsonServers" | "mcpJsonServers" => Some("mcpServers"),
         _ => None,
@@ -56,7 +58,11 @@ mod tests {
 
     #[test]
     fn deprecated_key_replacement_matches_all_three_patterns() {
-        for key in ["enabledMcpjsonServers", "disabledMcpjsonServers", "mcpJsonServers"] {
+        for key in [
+            "enabledMcpjsonServers",
+            "disabledMcpjsonServers",
+            "mcpJsonServers",
+        ] {
             let msg = format!("{DEPRECATED_KEY_PREFIX}: {key}");
             assert_eq!(deprecated_key_replacement(&msg), Some("mcpServers"));
         }
@@ -69,16 +75,34 @@ mod tests {
 
     #[test]
     fn hook_key_replacement_matches_all_four_patterns() {
-        assert_eq!(hook_key_replacement(&format!("{HOOK_KEY_PREFIX}: hookEvents")), Some("hooks"));
-        assert_eq!(hook_key_replacement(&format!("{HOOK_KEY_PREFIX}: hook_events")), Some("hooks"));
-        assert_eq!(hook_key_replacement(&format!("{HOOK_KEY_PREFIX}: pre_tool_use")), Some("PreToolUse"));
-        assert_eq!(hook_key_replacement(&format!("{HOOK_KEY_PREFIX}: post_tool_use")), Some("PostToolUse"));
+        assert_eq!(
+            hook_key_replacement(&format!("{HOOK_KEY_PREFIX}: hookEvents")),
+            Some("hooks")
+        );
+        assert_eq!(
+            hook_key_replacement(&format!("{HOOK_KEY_PREFIX}: hook_events")),
+            Some("hooks")
+        );
+        assert_eq!(
+            hook_key_replacement(&format!("{HOOK_KEY_PREFIX}: pre_tool_use")),
+            Some("PreToolUse")
+        );
+        assert_eq!(
+            hook_key_replacement(&format!("{HOOK_KEY_PREFIX}: post_tool_use")),
+            Some("PostToolUse")
+        );
     }
 
     #[test]
     fn first_object_member_insert_offset_finds_position_after_brace() {
-        assert_eq!(first_object_member_insert_offset(r#"{"name": "x"}"#), Some(1));
-        assert_eq!(first_object_member_insert_offset("   {\n  \"a\": 1\n}"), Some(4));
+        assert_eq!(
+            first_object_member_insert_offset(r#"{"name": "x"}"#),
+            Some(1)
+        );
+        assert_eq!(
+            first_object_member_insert_offset("   {\n  \"a\": 1\n}"),
+            Some(4)
+        );
     }
 
     #[test]
@@ -93,9 +117,10 @@ mod tests {
     /// happen to match today.
     #[test]
     fn replacement_functions_agree_with_the_real_analyzer_output() {
-        use crate::analyzers::json::{settings_json_rules, ReplayableAnalyzer, JsonAnalyzer};
+        use crate::analyzers::json::{settings_json_rules, JsonAnalyzer, ReplayableAnalyzer};
         let analyzer = JsonAnalyzer::new();
-        let findings = analyzer.analyze(r#"{"enabledMcpjsonServers": [], "hookEvents": {}, "pre_tool_use": []}"#);
+        let findings = analyzer
+            .analyze(r#"{"enabledMcpjsonServers": [], "hookEvents": {}, "pre_tool_use": []}"#);
         let mut saw_001 = false;
         let mut saw_002 = false;
         for f in findings {
@@ -116,7 +141,11 @@ mod tests {
         // this module's constants assume — pins the two together so if the
         // rule wording changes, this test (not a silent quick-fix bug) fails.
         let rules = settings_json_rules();
-        assert!(rules.iter().any(|r| r.code == "CCC-JSON-001" && r.message_prefix == DEPRECATED_KEY_PREFIX));
-        assert!(rules.iter().any(|r| r.code == "CCC-JSON-002" && r.message_prefix == HOOK_KEY_PREFIX));
+        assert!(rules
+            .iter()
+            .any(|r| r.code == "CCC-JSON-001" && r.message_prefix == DEPRECATED_KEY_PREFIX));
+        assert!(rules
+            .iter()
+            .any(|r| r.code == "CCC-JSON-002" && r.message_prefix == HOOK_KEY_PREFIX));
     }
 }

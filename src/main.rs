@@ -17,5 +17,18 @@ fn main() -> clap_noun_verb::Result<()> {
         rt.block_on(nouns::config::start_stdio_server());
         return Ok(());
     }
+    // `receipt verify [PATH]` is dispatched here rather than through the
+    // framework: the affidavit dep re-registers its own `receipt verify
+    // --receipt <RECEIPT>` over any override on every registry init (see
+    // nouns::config::receipt_verify_cli). Everything else routes normally.
+    let argv: Vec<String> = std::env::args().collect();
+    if argv.len() >= 3 && argv[1] == "receipt" && argv[2] == "verify" {
+        let path = argv
+            .get(3)
+            .map(|s| s.as_str())
+            .filter(|s| !s.starts_with('-'));
+        nouns::config::receipt_verify_cli(path);
+        return Ok(());
+    }
     clap_noun_verb::run()
 }

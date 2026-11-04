@@ -4,7 +4,6 @@
 //! CANDIDATE: transcript required for ADMITTED
 //! To promote: attach receipt triple in schema/domain.ttl, then `ggen sync`
 
-
 use serde::Serialize;
 
 #[cfg(feature = "bcinr")]
@@ -85,7 +84,9 @@ fn analyze_pattern_bcinr(
         let input_bytes = input.as_bytes();
         let mut pos = 0;
 
-        while let Some(offset) = swar_str::find_first_byte_in_slice(&input_bytes[pos..], target_byte) {
+        while let Some(offset) =
+            swar_str::find_first_byte_in_slice(&input_bytes[pos..], target_byte)
+        {
             let abs = pos + offset;
             findings.push(RawFinding {
                 code: code.to_string(),
@@ -194,7 +195,6 @@ impl ReplayableAnalyzer for ClaudeMdAnalyzer {
     }
 }
 
-
 // ── Hand-coded section — rules derived from Claude Code Skill spec ────────────
 
 /// Validate CLAUDE.md / AGENTS.md — CCC-MD-006: must have H1 title as first non-empty line.
@@ -203,28 +203,166 @@ pub fn validate_claude_md(content: &str) -> Vec<RawFinding> {
     let first_non_empty = content.lines().find(|l| !l.trim().is_empty());
     match first_non_empty {
         None => {
-            findings.push(RawFinding { code: "CCC-MD-006".into(), message: "CLAUDE.md is empty or has no content".into(), span: (0, 0) });
+            findings.push(RawFinding {
+                code: "CCC-MD-006".into(),
+                message: "CLAUDE.md is empty or has no content".into(),
+                span: (0, 0),
+            });
         }
         Some(line) if !line.starts_with("# ") => {
-            findings.push(RawFinding { code: "CCC-MD-006".into(), message: "CLAUDE.md should start with an H1 title (# Title)".into(), span: (0, line.len()) });
+            findings.push(RawFinding {
+                code: "CCC-MD-006".into(),
+                message: "CLAUDE.md should start with an H1 title (# Title)".into(),
+                span: (0, line.len()),
+            });
         }
         _ => {}
     }
     findings
 }
 
+/// Validate agent-definition `.md` frontmatter — md-family rules CCC-MD-001/002/003
+/// (ontology surfaces: ccc:AgentMd). Distinct from the frontmatter-family analogs
+/// (CCC-AGENT-001/005/006): the MD codes fire on field ABSENCE (the analogs fire on
+/// empty values / value validity) and carry real token/block spans.
+pub fn validate_agent_md(content: &str) -> Vec<RawFinding> {
+    let mut findings = Vec::new();
+    let Some(fm) = extract_frontmatter(content) else {
+        return findings;
+    };
+    let fm_start = content.find("---").map(|p| p + 3).unwrap_or(0);
+    let fm_span = (fm_start, fm_start + fm.len());
+
+    let mut has_name = false;
+    let mut has_description = false;
+    let mut in_tools_block = false;
+    let mut cursor = fm_start;
+    for raw_line in fm.lines() {
+        let line = raw_line.trim();
+        let line_start = cursor;
+        cursor += raw_line.len() + 1;
+
+        if line.starts_with("name:") {
+            has_name = true;
+            in_tools_block = false;
+            continue;
+        }
+        if line.starts_with("description:") {
+            has_description = true;
+            in_tools_block = false;
+            continue;
+        }
+        if line.starts_with("tools:") {
+            in_tools_block = true;
+            // Inline list form: tools: [Read, Write]
+            let after = line.trim_start_matches("tools:").trim();
+            if after.starts_with('[') {
+                in_tools_block = false;
+                let inner = after.trim_start_matches('[').trim_end_matches(']');
+                for tool in inner.split(',') {
+                    let tool = tool.trim().trim_matches('"').trim_matches('\'');
+                    if tool.is_empty() {
+                        continue;
+                    }
+                    if !is_known_tool(tool) {
+                        // Token span: the unknown tool literal inside the line.
+                        let col = raw_line.find(tool).unwrap_or(0);
+                        findings.push(RawFinding {
+                            code: "CCC-MD-003".into(),
+                            message: format!("Unknown tool '{tool}' in tools array"),
+                            span: (line_start + col, line_start + col + tool.len()),
+                        });
+                    }
+                }
+            }
+            continue;
+        }
+        // Block list form: continuation "- Tool" entries under an indented tools: key.
+        if in_tools_block {
+            let is_block_member = line.is_empty()
+                || line.starts_with('-')
+                || raw_line.starts_with(' ')
+                || raw_line.starts_with('\t');
+            if !is_block_member {
+                in_tools_block = false;
+            } else if let Some(tool) = line.strip_prefix("- ") {
+                let tool = tool.trim().trim_matches('"').trim_matches('\'');
+                if !tool.is_empty() && !is_known_tool(tool) {
+                    let col = raw_line.find(tool).unwrap_or(0);
+                    findings.push(RawFinding {
+                        code: "CCC-MD-003".into(),
+                        message: format!("Unknown tool '{tool}' in tools array"),
+                        span: (line_start + col, line_start + col + tool.len()),
+                    });
+                }
+            }
+        }
+    }
+
+    // Field-absence checks (the analogs cover empty-valued fields).
+    if !has_name {
+        findings.push(RawFinding {
+            code: "CCC-MD-001".into(),
+            message: "Missing required name field in front-matter".into(),
+            span: fm_span,
+        });
+    }
+    if !has_description {
+        findings.push(RawFinding {
+            code: "CCC-MD-002".into(),
+            message: "Missing required description field in front-matter".into(),
+            span: fm_span,
+        });
+    }
+    findings.sort_by(|a, b| a.span.0.cmp(&b.span.0).then(a.code.cmp(&b.code)));
+    findings
+}
+
+/// Known agent tool names — mirrors src/analyzers/frontmatter.rs VALID_TOOLS
+/// (including the mcp__ escape hatch).
+fn is_known_tool(tool: &str) -> bool {
+    const VALID_TOOLS: &[&str] = &[
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "Grep",
+        "Glob",
+        "Agent",
+        "TaskCreate",
+        "NotebookEdit",
+        "WebFetch",
+        "WebSearch",
+        "LSP",
+        "MultiEdit",
+        "TodoRead",
+        "TodoWrite",
+    ];
+    VALID_TOOLS.contains(&tool) || tool.starts_with("mcp__")
+}
+
 pub fn extract_frontmatter(content: &str) -> Option<&str> {
     let mut lines = content.splitn(3, "---");
     lines.next()?;
     let body = lines.next()?;
-    if body.trim().is_empty() { return None; }
+    if body.trim().is_empty() {
+        return None;
+    }
     Some(body)
 }
 
 pub fn skill_name_rules() -> Vec<Rule> {
     vec![
-        Rule::new("CCC-SKILL-003", vec!["anthropic".to_string()], "Skill name contains reserved word"),
-        Rule::new("CCC-SKILL-003", vec!["claude".to_string()], "Skill name contains reserved word"),
+        Rule::new(
+            "CCC-SKILL-003",
+            vec!["anthropic".to_string()],
+            "Skill name contains reserved word",
+        ),
+        Rule::new(
+            "CCC-SKILL-003",
+            vec!["claude".to_string()],
+            "Skill name contains reserved word",
+        ),
     ]
 }
 
@@ -236,7 +374,9 @@ const VALID_SKILL_EFFORT_LEVELS: &[&str] = &["low", "medium", "high", "xhigh", "
 
 pub fn validate_skill_frontmatter(content: &str) -> Vec<RawFinding> {
     let mut findings = Vec::new();
-    let Some(fm) = extract_frontmatter(content) else { return findings };
+    let Some(fm) = extract_frontmatter(content) else {
+        return findings;
+    };
     let mut name: Option<&str> = None;
     let mut description: Option<&str> = None;
     let mut base_offset = content.find("---").map(|p| p + 3).unwrap_or(0);
@@ -249,7 +389,18 @@ pub fn validate_skill_frontmatter(content: &str) -> Vec<RawFinding> {
         if let Some(val) = line.strip_prefix("user-invocable:") {
             let val = val.trim();
             if !val.is_empty() && val != "true" && val != "false" {
-                findings.push(RawFinding { code: "CCC-SKILL-006".into(), message: format!("user-invocable must be true or false, got '{val}'"), span: (line_start, line_start + raw_line.len()) });
+                findings.push(RawFinding {
+                    code: "CCC-SKILL-006".into(),
+                    message: format!("user-invocable must be true or false, got '{val}'"),
+                    span: (line_start, line_start + raw_line.len()),
+                });
+                // CCC-MD-005 (md family, SkillMd surface): same condition, value-token span.
+                let col = raw_line.find(val).unwrap_or(0);
+                findings.push(RawFinding {
+                    code: "CCC-MD-005".into(),
+                    message: format!("user-invocable field must be boolean, got '{val}'"),
+                    span: (line_start + col, line_start + col + val.len()),
+                });
             }
         }
 
@@ -257,7 +408,11 @@ pub fn validate_skill_frontmatter(content: &str) -> Vec<RawFinding> {
         if let Some(val) = line.strip_prefix("default-enabled:") {
             let val = val.trim();
             if !val.is_empty() && val != "true" && val != "false" {
-                findings.push(RawFinding { code: "CCC-SKILL-007".into(), message: format!("default-enabled must be true or false, got '{val}'"), span: (line_start, line_start + raw_line.len()) });
+                findings.push(RawFinding {
+                    code: "CCC-SKILL-007".into(),
+                    message: format!("default-enabled must be true or false, got '{val}'"),
+                    span: (line_start, line_start + raw_line.len()),
+                });
             }
         }
 
@@ -265,7 +420,14 @@ pub fn validate_skill_frontmatter(content: &str) -> Vec<RawFinding> {
         if let Some(val) = line.strip_prefix("context:") {
             let val = val.trim().trim_matches('"');
             if !val.is_empty() && !VALID_SKILL_CONTEXT_VALUES.contains(&val) {
-                findings.push(RawFinding { code: "CCC-SKILL-008".into(), message: format!("Unknown context '{val}' — valid: {}", VALID_SKILL_CONTEXT_VALUES.join(", ")), span: (line_start, line_start + raw_line.len()) });
+                findings.push(RawFinding {
+                    code: "CCC-SKILL-008".into(),
+                    message: format!(
+                        "Unknown context '{val}' — valid: {}",
+                        VALID_SKILL_CONTEXT_VALUES.join(", ")
+                    ),
+                    span: (line_start, line_start + raw_line.len()),
+                });
             }
         }
 
@@ -273,7 +435,14 @@ pub fn validate_skill_frontmatter(content: &str) -> Vec<RawFinding> {
         if let Some(val) = line.strip_prefix("effort:") {
             let val = val.trim().trim_matches('"');
             if !val.is_empty() && !VALID_SKILL_EFFORT_LEVELS.contains(&val) {
-                findings.push(RawFinding { code: "CCC-SKILL-009".into(), message: format!("Unknown effort '{val}' — valid: {}", VALID_SKILL_EFFORT_LEVELS.join(", ")), span: (line_start, line_start + raw_line.len()) });
+                findings.push(RawFinding {
+                    code: "CCC-SKILL-009".into(),
+                    message: format!(
+                        "Unknown effort '{val}' — valid: {}",
+                        VALID_SKILL_EFFORT_LEVELS.join(", ")
+                    ),
+                    span: (line_start, line_start + raw_line.len()),
+                });
             }
         }
 
@@ -281,22 +450,38 @@ pub fn validate_skill_frontmatter(content: &str) -> Vec<RawFinding> {
         if let Some(val) = line.strip_prefix("argument-hint:") {
             let val = val.trim().trim_matches('"');
             if val.is_empty() {
-                findings.push(RawFinding { code: "CCC-SKILL-010".into(), message: "argument-hint is present but empty".into(), span: (line_start, line_start + raw_line.len()) });
+                findings.push(RawFinding {
+                    code: "CCC-SKILL-010".into(),
+                    message: "argument-hint is present but empty".into(),
+                    span: (line_start, line_start + raw_line.len()),
+                });
             }
         }
         if let Some(val) = line.strip_prefix("name:") {
             let val = val.trim().trim_matches('"');
             name = Some(val);
             if val.len() > 64 {
-                findings.push(RawFinding { code: "CCC-SKILL-001".into(), message: format!("Skill name exceeds 64 chars ({})", val.len()), span: (line_start, line_start + raw_line.len()) });
+                findings.push(RawFinding {
+                    code: "CCC-SKILL-001".into(),
+                    message: format!("Skill name exceeds 64 chars ({})", val.len()),
+                    span: (line_start, line_start + raw_line.len()),
+                });
             }
             if val.chars().any(|c| c.is_uppercase()) {
-                findings.push(RawFinding { code: "CCC-SKILL-002".into(), message: "Skill name must be lowercase".into(), span: (line_start, line_start + raw_line.len()) });
+                findings.push(RawFinding {
+                    code: "CCC-SKILL-002".into(),
+                    message: "Skill name must be lowercase".into(),
+                    span: (line_start, line_start + raw_line.len()),
+                });
             }
             let val_lower = val.to_lowercase();
             for reserved in &["anthropic", "claude"] {
                 if val_lower.contains(reserved) {
-                    findings.push(RawFinding { code: "CCC-SKILL-003".into(), message: format!("Skill name contains reserved word '{reserved}'"), span: (line_start, line_start + raw_line.len()) });
+                    findings.push(RawFinding {
+                        code: "CCC-SKILL-003".into(),
+                        message: format!("Skill name contains reserved word '{reserved}'"),
+                        span: (line_start, line_start + raw_line.len()),
+                    });
                 }
             }
         }
@@ -304,14 +489,26 @@ pub fn validate_skill_frontmatter(content: &str) -> Vec<RawFinding> {
             let val = val.trim().trim_matches('"');
             description = Some(val);
             if val.is_empty() {
-                findings.push(RawFinding { code: "CCC-SKILL-004".into(), message: "Skill description must be non-empty".into(), span: (line_start, line_start + raw_line.len()) });
+                findings.push(RawFinding {
+                    code: "CCC-SKILL-004".into(),
+                    message: "Skill description must be non-empty".into(),
+                    span: (line_start, line_start + raw_line.len()),
+                });
             } else if val.len() > 1024 {
-                findings.push(RawFinding { code: "CCC-SKILL-005".into(), message: format!("Skill description exceeds 1024 chars ({})", val.len()), span: (line_start, line_start + raw_line.len()) });
+                findings.push(RawFinding {
+                    code: "CCC-SKILL-005".into(),
+                    message: format!("Skill description exceeds 1024 chars ({})", val.len()),
+                    span: (line_start, line_start + raw_line.len()),
+                });
             }
         }
     }
     if name.is_some() && description.is_none() {
-        findings.push(RawFinding { code: "CCC-SKILL-004".into(), message: "Skill description field is missing".into(), span: (0, content.find("---").unwrap_or(0)) });
+        findings.push(RawFinding {
+            code: "CCC-SKILL-004".into(),
+            message: "Skill description field is missing".into(),
+            span: (0, content.find("---").unwrap_or(0)),
+        });
     }
     findings.sort_by(|a, b| a.span.0.cmp(&b.span.0).then(a.code.cmp(&b.code)));
     findings
@@ -345,30 +542,252 @@ mod tests {
     }
 
     const VALID_SKILL: &str = "---\nname: my-tool\ndescription: Does something useful.\n---\n";
-    #[test] fn valid_skill_has_no_findings() { assert!(validate_skill_frontmatter(VALID_SKILL).is_empty()); }
-    #[test] fn ccc_skill_001_name_too_long() { let n = "a".repeat(65); let i = format!("---\nname: {n}\ndescription: ok\n---\n"); assert!(validate_skill_frontmatter(&i).iter().any(|x| x.code == "CCC-SKILL-001")); }
-    #[test] fn ccc_skill_002_uppercase_name() { let i = "---\nname: MyTool\ndescription: ok\n---\n"; assert!(validate_skill_frontmatter(i).iter().any(|x| x.code == "CCC-SKILL-002")); }
-    #[test] fn ccc_skill_003_reserved_anthropic() { let i = "---\nname: anthropic-helper\ndescription: ok\n---\n"; assert!(validate_skill_frontmatter(i).iter().any(|x| x.code == "CCC-SKILL-003")); }
-    #[test] fn ccc_skill_003_reserved_claude() { let i = "---\nname: claude-wrapper\ndescription: ok\n---\n"; assert!(validate_skill_frontmatter(i).iter().any(|x| x.code == "CCC-SKILL-003")); }
-    #[test] fn ccc_skill_004_missing_description() { let i = "---\nname: my-tool\n---\n"; assert!(validate_skill_frontmatter(i).iter().any(|x| x.code == "CCC-SKILL-004")); }
-    #[test] fn ccc_skill_004_empty_description() { let i = "---\nname: my-tool\ndescription: \n---\n"; assert!(validate_skill_frontmatter(i).iter().any(|x| x.code == "CCC-SKILL-004")); }
-    #[test] fn ccc_skill_005_description_too_long() { let d = "x".repeat(1025); let i = format!("---\nname: my-tool\ndescription: {d}\n---\n"); assert!(validate_skill_frontmatter(&i).iter().any(|x| x.code == "CCC-SKILL-005")); }
-    #[test] fn multiple_violations_all_reported() { let i = "---\nname: Claude-Tool\n---\n"; let f = validate_skill_frontmatter(i); assert!(f.iter().any(|x| x.code == "CCC-SKILL-002")); assert!(f.iter().any(|x| x.code == "CCC-SKILL-003")); assert!(f.iter().any(|x| x.code == "CCC-SKILL-004")); }
-    #[test] fn no_frontmatter_returns_empty() { assert!(validate_skill_frontmatter("# No frontmatter").is_empty()); }
-    #[test] fn ccc_md_006_missing_h1() { assert!(validate_claude_md("Some text without h1").iter().any(|f| f.code == "CCC-MD-006")); }
-    #[test] fn ccc_md_006_empty_file() { assert!(validate_claude_md("   \n\n").iter().any(|f| f.code == "CCC-MD-006")); }
-    #[test] fn ccc_md_006_h2_not_h1() { assert!(validate_claude_md("## Wrong level").iter().any(|f| f.code == "CCC-MD-006")); }
-    #[test] fn ccc_md_006_valid_h1() { assert!(validate_claude_md("# My Project\n\nContent.").is_empty()); }
-    #[test] fn exactly_64_char_name_is_valid() { let n = "a".repeat(64); let i = format!("---\nname: {n}\ndescription: ok\n---\n"); assert!(!validate_skill_frontmatter(&i).iter().any(|x| x.code == "CCC-SKILL-001")); }
-    #[test] fn exactly_1024_char_description_is_valid() { let d = "x".repeat(1024); let i = format!("---\nname: my-tool\ndescription: {d}\n---\n"); assert!(!validate_skill_frontmatter(&i).iter().any(|x| x.code == "CCC-SKILL-005")); }
+    #[test]
+    fn valid_skill_has_no_findings() {
+        assert!(validate_skill_frontmatter(VALID_SKILL).is_empty());
+    }
+    #[test]
+    fn ccc_skill_001_name_too_long() {
+        let n = "a".repeat(65);
+        let i = format!("---\nname: {n}\ndescription: ok\n---\n");
+        assert!(validate_skill_frontmatter(&i)
+            .iter()
+            .any(|x| x.code == "CCC-SKILL-001"));
+    }
+    #[test]
+    fn ccc_skill_002_uppercase_name() {
+        let i = "---\nname: MyTool\ndescription: ok\n---\n";
+        assert!(validate_skill_frontmatter(i)
+            .iter()
+            .any(|x| x.code == "CCC-SKILL-002"));
+    }
+    #[test]
+    fn ccc_skill_003_reserved_anthropic() {
+        let i = "---\nname: anthropic-helper\ndescription: ok\n---\n";
+        assert!(validate_skill_frontmatter(i)
+            .iter()
+            .any(|x| x.code == "CCC-SKILL-003"));
+    }
+    #[test]
+    fn ccc_skill_003_reserved_claude() {
+        let i = "---\nname: claude-wrapper\ndescription: ok\n---\n";
+        assert!(validate_skill_frontmatter(i)
+            .iter()
+            .any(|x| x.code == "CCC-SKILL-003"));
+    }
+    #[test]
+    fn ccc_skill_004_missing_description() {
+        let i = "---\nname: my-tool\n---\n";
+        assert!(validate_skill_frontmatter(i)
+            .iter()
+            .any(|x| x.code == "CCC-SKILL-004"));
+    }
+    #[test]
+    fn ccc_skill_004_empty_description() {
+        let i = "---\nname: my-tool\ndescription: \n---\n";
+        assert!(validate_skill_frontmatter(i)
+            .iter()
+            .any(|x| x.code == "CCC-SKILL-004"));
+    }
+    #[test]
+    fn ccc_skill_005_description_too_long() {
+        let d = "x".repeat(1025);
+        let i = format!("---\nname: my-tool\ndescription: {d}\n---\n");
+        assert!(validate_skill_frontmatter(&i)
+            .iter()
+            .any(|x| x.code == "CCC-SKILL-005"));
+    }
+    #[test]
+    fn multiple_violations_all_reported() {
+        let i = "---\nname: Claude-Tool\n---\n";
+        let f = validate_skill_frontmatter(i);
+        assert!(f.iter().any(|x| x.code == "CCC-SKILL-002"));
+        assert!(f.iter().any(|x| x.code == "CCC-SKILL-003"));
+        assert!(f.iter().any(|x| x.code == "CCC-SKILL-004"));
+    }
+    #[test]
+    fn no_frontmatter_returns_empty() {
+        assert!(validate_skill_frontmatter("# No frontmatter").is_empty());
+    }
+    #[test]
+    fn ccc_md_006_missing_h1() {
+        assert!(validate_claude_md("Some text without h1")
+            .iter()
+            .any(|f| f.code == "CCC-MD-006"));
+    }
+    #[test]
+    fn ccc_md_006_empty_file() {
+        assert!(validate_claude_md("   \n\n")
+            .iter()
+            .any(|f| f.code == "CCC-MD-006"));
+    }
+    #[test]
+    fn ccc_md_006_h2_not_h1() {
+        assert!(validate_claude_md("## Wrong level")
+            .iter()
+            .any(|f| f.code == "CCC-MD-006"));
+    }
+    #[test]
+    fn ccc_md_006_valid_h1() {
+        assert!(validate_claude_md("# My Project\n\nContent.").is_empty());
+    }
+    #[test]
+    fn exactly_64_char_name_is_valid() {
+        let n = "a".repeat(64);
+        let i = format!("---\nname: {n}\ndescription: ok\n---\n");
+        assert!(!validate_skill_frontmatter(&i)
+            .iter()
+            .any(|x| x.code == "CCC-SKILL-001"));
+    }
+    #[test]
+    fn exactly_1024_char_description_is_valid() {
+        let d = "x".repeat(1024);
+        let i = format!("---\nname: my-tool\ndescription: {d}\n---\n");
+        assert!(!validate_skill_frontmatter(&i)
+            .iter()
+            .any(|x| x.code == "CCC-SKILL-005"));
+    }
 
     // Phase C: new skill frontmatter fields
-    #[test] fn ccc_skill_006_user_invocable_not_bool() { let i = "---\nname: x\ndescription: y\nuser-invocable: yes\n---\n"; assert!(validate_skill_frontmatter(i).iter().any(|f| f.code == "CCC-SKILL-006")); }
-    #[test] fn valid_user_invocable_true_clean() { let i = "---\nname: x\ndescription: y\nuser-invocable: true\n---\n"; assert!(!validate_skill_frontmatter(i).iter().any(|f| f.code == "CCC-SKILL-006")); }
-    #[test] fn ccc_skill_007_default_enabled_not_bool() { let i = "---\nname: x\ndescription: y\ndefault-enabled: nope\n---\n"; assert!(validate_skill_frontmatter(i).iter().any(|f| f.code == "CCC-SKILL-007")); }
-    #[test] fn ccc_skill_008_invalid_context() { let i = "---\nname: x\ndescription: y\ncontext: spawn\n---\n"; assert!(validate_skill_frontmatter(i).iter().any(|f| f.code == "CCC-SKILL-008")); }
-    #[test] fn valid_context_fork_clean_skill() { let i = "---\nname: x\ndescription: y\ncontext: fork\n---\n"; assert!(!validate_skill_frontmatter(i).iter().any(|f| f.code == "CCC-SKILL-008")); }
-    #[test] fn ccc_skill_009_invalid_effort() { let i = "---\nname: x\ndescription: y\neffort: extreme\n---\n"; assert!(validate_skill_frontmatter(i).iter().any(|f| f.code == "CCC-SKILL-009")); }
-    #[test] fn valid_effort_max_clean_skill() { let i = "---\nname: x\ndescription: y\neffort: max\n---\n"; assert!(!validate_skill_frontmatter(i).iter().any(|f| f.code == "CCC-SKILL-009")); }
-    #[test] fn ccc_skill_010_empty_argument_hint() { let i = "---\nname: x\ndescription: y\nargument-hint: \n---\n"; assert!(validate_skill_frontmatter(i).iter().any(|f| f.code == "CCC-SKILL-010")); }
+    #[test]
+    fn ccc_skill_006_user_invocable_not_bool() {
+        let i = "---\nname: x\ndescription: y\nuser-invocable: yes\n---\n";
+        assert!(validate_skill_frontmatter(i)
+            .iter()
+            .any(|f| f.code == "CCC-SKILL-006"));
+    }
+    #[test]
+    fn valid_user_invocable_true_clean() {
+        let i = "---\nname: x\ndescription: y\nuser-invocable: true\n---\n";
+        assert!(!validate_skill_frontmatter(i)
+            .iter()
+            .any(|f| f.code == "CCC-SKILL-006"));
+    }
+    #[test]
+    fn ccc_skill_007_default_enabled_not_bool() {
+        let i = "---\nname: x\ndescription: y\ndefault-enabled: nope\n---\n";
+        assert!(validate_skill_frontmatter(i)
+            .iter()
+            .any(|f| f.code == "CCC-SKILL-007"));
+    }
+    #[test]
+    fn ccc_skill_008_invalid_context() {
+        let i = "---\nname: x\ndescription: y\ncontext: spawn\n---\n";
+        assert!(validate_skill_frontmatter(i)
+            .iter()
+            .any(|f| f.code == "CCC-SKILL-008"));
+    }
+    #[test]
+    fn valid_context_fork_clean_skill() {
+        let i = "---\nname: x\ndescription: y\ncontext: fork\n---\n";
+        assert!(!validate_skill_frontmatter(i)
+            .iter()
+            .any(|f| f.code == "CCC-SKILL-008"));
+    }
+    #[test]
+    fn ccc_skill_009_invalid_effort() {
+        let i = "---\nname: x\ndescription: y\neffort: extreme\n---\n";
+        assert!(validate_skill_frontmatter(i)
+            .iter()
+            .any(|f| f.code == "CCC-SKILL-009"));
+    }
+    #[test]
+    fn valid_effort_max_clean_skill() {
+        let i = "---\nname: x\ndescription: y\neffort: max\n---\n";
+        assert!(!validate_skill_frontmatter(i)
+            .iter()
+            .any(|f| f.code == "CCC-SKILL-009"));
+    }
+    #[test]
+    fn ccc_skill_010_empty_argument_hint() {
+        let i = "---\nname: x\ndescription: y\nargument-hint: \n---\n";
+        assert!(validate_skill_frontmatter(i)
+            .iter()
+            .any(|f| f.code == "CCC-SKILL-010"));
+    }
+
+    // md-family agent rules (CCC-MD-001/002/003)
+    #[test]
+    fn ccc_md_001_absent_name_field() {
+        let i = "---\ndescription: ok\n---\nbody";
+        let f = validate_agent_md(i);
+        let hits: Vec<_> = f.iter().filter(|x| x.code == "CCC-MD-001").collect();
+        assert_eq!(hits.len(), 1);
+        assert!(
+            hits[0].span.0 != 0 || hits[0].span.1 != 0,
+            "real span required"
+        );
+        assert_eq!(
+            hits[0].message,
+            "Missing required name field in front-matter"
+        );
+    }
+    #[test]
+    fn ccc_md_001_present_name_is_clean() {
+        let i = "---\nname: x\n---\nbody";
+        assert!(!validate_agent_md(i).iter().any(|f| f.code == "CCC-MD-001"));
+    }
+    #[test]
+    fn ccc_md_002_absent_description_field() {
+        let i = "---\nname: x\n---\nbody";
+        assert!(validate_agent_md(i).iter().any(|f| f.code == "CCC-MD-002"));
+    }
+    #[test]
+    fn ccc_md_003_inline_unknown_tool_token_span() {
+        let i = "---\nname: x\ndescription: y\ntools: [Read, SuperTool]\n---\n";
+        let f = validate_agent_md(i);
+        let hits: Vec<_> = f.iter().filter(|x| x.code == "CCC-MD-003").collect();
+        assert_eq!(hits.len(), 1);
+        let s = i.find("SuperTool").unwrap();
+        assert_eq!(hits[0].span, (s, s + "SuperTool".len()));
+    }
+    #[test]
+    fn ccc_md_003_block_list_unknown_tool() {
+        let i = "---\nname: x\ndescription: y\ntools:\n  - Read\n  - MysteryTool\n---\n";
+        let findings = validate_agent_md(i);
+        let hits: Vec<_> = findings.iter().filter(|x| x.code == "CCC-MD-003").collect();
+        assert_eq!(hits.len(), 1);
+        assert!(hits[0].message.contains("MysteryTool"));
+    }
+    #[test]
+    fn ccc_md_003_mcp_escape_hatch_clean() {
+        let i = "---\nname: x\ndescription: y\ntools: [Read, mcp__github__search]\n---\n";
+        assert!(
+            validate_agent_md(i)
+                .iter()
+                .filter(|x| x.code == "CCC-MD-003")
+                .count()
+                == 0
+        );
+    }
+    #[test]
+    fn ccc_md_all_absent_both_fire() {
+        let i = "---\nmodel: opus\n---\n";
+        let f = validate_agent_md(i);
+        assert!(f.iter().any(|x| x.code == "CCC-MD-001"));
+        assert!(f.iter().any(|x| x.code == "CCC-MD-002"));
+    }
+    #[test]
+    fn ccc_md_no_frontmatter_clean() {
+        assert!(validate_agent_md("# no frontmatter").is_empty());
+    }
+    #[test]
+    fn ccc_md_005_value_token_span() {
+        let i = "---\nname: x\ndescription: y\nuser-invocable: yes\n---\n";
+        let findings = validate_skill_frontmatter(i);
+        let hits: Vec<_> = findings.iter().filter(|f| f.code == "CCC-MD-005").collect();
+        assert_eq!(hits.len(), 1);
+        let s = i.find("yes").unwrap();
+        assert_eq!(hits[0].span, (s, s + 3));
+        assert!(hits[0]
+            .message
+            .starts_with("user-invocable field must be boolean"));
+    }
+    #[test]
+    fn ccc_md_005_valid_boolean_clean() {
+        let i = "---\nname: x\ndescription: y\nuser-invocable: false\n---\n";
+        assert!(!validate_skill_frontmatter(i)
+            .iter()
+            .any(|f| f.code == "CCC-MD-005"));
+    }
 }

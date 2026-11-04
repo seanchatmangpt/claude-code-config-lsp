@@ -9,6 +9,8 @@ pub const SUPPORTED_FILE_TYPES: &[(&str, &str)] = &[
 
     ("**/.claude/agents/*.md", "claude-config-markdown"),
 
+    ("**/.claude/commands/*.md", "markdown"),
+
     ("**/.claude/hooks/*.sh", "shellscript"),
 
     ("**/.claude/lsp-max-auto.toml", "claude-config-toml"),
@@ -66,6 +68,8 @@ mod tests {
 
         assert_eq!(get_server_for_extension("**/.claude/agents/*.md"), Some("claude-config-markdown"));
 
+        assert_eq!(get_server_for_extension("**/.claude/commands/*.md"), Some("markdown"));
+
         assert_eq!(get_server_for_extension("**/.claude/hooks/*.sh"), Some("shellscript"));
 
         assert_eq!(get_server_for_extension("**/.claude/lsp-max-auto.toml"), Some("claude-config-toml"));
@@ -99,6 +103,8 @@ mod tests {
         assert_eq!(map.len(), SUPPORTED_FILE_TYPES.len());
 
         assert_eq!(map.get("**/.claude/agents/*.md").map(|s| s.as_str()), Some("claude-config-markdown"));
+
+        assert_eq!(map.get("**/.claude/commands/*.md").map(|s| s.as_str()), Some("markdown"));
 
         assert_eq!(map.get("**/.claude/hooks/*.sh").map(|s| s.as_str()), Some("shellscript"));
 

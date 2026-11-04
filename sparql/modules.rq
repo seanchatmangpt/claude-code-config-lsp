@@ -19,3 +19,5 @@ SELECT ?server_name ?module_name WHERE {
     UNION
     { BIND("ClaudeCodeConfig" AS ?server_name) BIND("analyzers" AS ?module_name) }
 }
+
+ORDER BY ?server_name ?module_name

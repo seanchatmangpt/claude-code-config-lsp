@@ -4,7 +4,6 @@
 //! CANDIDATE: transcript required for ADMITTED
 //! To promote: attach receipt triple in schema/domain.ttl, then `ggen sync`
 
-
 use serde::Serialize;
 
 #[cfg(feature = "bcinr")]
@@ -85,7 +84,9 @@ fn analyze_pattern_bcinr(
         let input_bytes = input.as_bytes();
         let mut pos = 0;
 
-        while let Some(offset) = swar_str::find_first_byte_in_slice(&input_bytes[pos..], target_byte) {
+        while let Some(offset) =
+            swar_str::find_first_byte_in_slice(&input_bytes[pos..], target_byte)
+        {
             let abs = pos + offset;
             findings.push(RawFinding {
                 code: code.to_string(),
@@ -194,7 +195,6 @@ impl ReplayableAnalyzer for FrontmatterAnalyzer {
     }
 }
 
-
 // ── Hand-coded: agent definition YAML frontmatter validation ─────────────────
 // Source: Claude Code subagent spec — required fields and enum constraints
 
@@ -202,15 +202,28 @@ impl ReplayableAnalyzer for FrontmatterAnalyzer {
 pub fn agent_frontmatter_rules() -> Vec<Rule> {
     vec![
         // CCC-AGENT-001: invalid model tier (only opus/sonnet/haiku family accepted)
-        Rule::new("CCC-AGENT-002", vec!["model: claude".to_string()], "Use model tier alias not full model ID"),
+        Rule::new(
+            "CCC-AGENT-002",
+            vec!["model: claude".to_string()],
+            "Use model tier alias not full model ID",
+        ),
         // CCC-AGENT-003: permissionMode must be one of the three valid values
-        Rule::new("CCC-AGENT-003", vec!["permissionMode: BYPASS".to_string()], "permissionMode BYPASS is not a valid tier"),
+        Rule::new(
+            "CCC-AGENT-003",
+            vec!["permissionMode: BYPASS".to_string()],
+            "permissionMode BYPASS is not a valid tier",
+        ),
     ]
 }
 
 /// Valid `permissionMode` values (mirrors `permissions.defaultMode` in settings.json).
 const VALID_PERMISSION_MODES: &[&str] = &[
-    "default", "manual", "plan", "acceptEdits", "bypassPermissions", "auto",
+    "default",
+    "manual",
+    "plan",
+    "acceptEdits",
+    "bypassPermissions",
+    "auto",
 ];
 
 /// Valid `memory.scope` values.
@@ -227,15 +240,29 @@ const VALID_AGENT_HOOK_EVENTS: &[&str] = &["PreToolUse", "PostToolUse", "Stop"];
 
 /// Known valid tool names for agent/skill definitions.
 const VALID_TOOLS: &[&str] = &[
-    "Read", "Write", "Edit", "Bash", "Grep", "Glob", "Agent",
-    "TaskCreate", "NotebookEdit", "WebFetch", "WebSearch", "LSP",
-    "MultiEdit", "TodoRead", "TodoWrite",
+    "Read",
+    "Write",
+    "Edit",
+    "Bash",
+    "Grep",
+    "Glob",
+    "Agent",
+    "TaskCreate",
+    "NotebookEdit",
+    "WebFetch",
+    "WebSearch",
+    "LSP",
+    "MultiEdit",
+    "TodoRead",
+    "TodoWrite",
 ];
 
 /// Validate an agent definition `.md` file's frontmatter for structural invariants.
 pub fn validate_agent_frontmatter(content: &str) -> Vec<RawFinding> {
     let mut findings = Vec::new();
-    let Some(fm) = extract_frontmatter(content) else { return findings };
+    let Some(fm) = extract_frontmatter(content) else {
+        return findings;
+    };
 
     let mut has_description = false;
     let mut has_name = false;
@@ -255,31 +282,51 @@ pub fn validate_agent_frontmatter(content: &str) -> Vec<RawFinding> {
             // A non-empty, non-indented, non-list-item line is a new
             // top-level key — it ends the hooks: block even if it also
             // happens to end in ':' (e.g. a sibling "tools:" key).
-            let is_block_member = line.is_empty() || line.starts_with('-')
-                || raw_line.starts_with(' ') || raw_line.starts_with('\t');
+            let is_block_member = line.is_empty()
+                || line.starts_with('-')
+                || raw_line.starts_with(' ')
+                || raw_line.starts_with('\t');
             if !is_block_member {
                 in_hooks_block = false;
             } else if let Some(event) = line.strip_suffix(':') {
                 let event = event.trim();
                 if !event.is_empty() && !VALID_AGENT_HOOK_EVENTS.contains(&event) {
-                    findings.push(RawFinding { code: "CCC-AGENT-011".into(), message: format!("Unknown hook event '{event}' in agent hooks — valid: {}", VALID_AGENT_HOOK_EVENTS.join(", ")), span: (line_start, line_start + raw_line.len()) });
+                    findings.push(RawFinding {
+                        code: "CCC-AGENT-011".into(),
+                        message: format!(
+                            "Unknown hook event '{event}' in agent hooks — valid: {}",
+                            VALID_AGENT_HOOK_EVENTS.join(", ")
+                        ),
+                        span: (line_start, line_start + raw_line.len()),
+                    });
                 }
             }
         }
 
         if line.starts_with("description:") {
             in_tools_block = false;
-            let val = line.trim_start_matches("description:").trim().trim_matches('"');
+            let val = line
+                .trim_start_matches("description:")
+                .trim()
+                .trim_matches('"');
             has_description = !val.is_empty();
             if val.len() > 1024 {
-                findings.push(RawFinding { code: "CCC-AGENT-005".into(), message: format!("Agent description exceeds 1024 chars ({})", val.len()), span: (line_start, line_start + raw_line.len()) });
+                findings.push(RawFinding {
+                    code: "CCC-AGENT-005".into(),
+                    message: format!("Agent description exceeds 1024 chars ({})", val.len()),
+                    span: (line_start, line_start + raw_line.len()),
+                });
             }
         } else if line.starts_with("name:") {
             in_tools_block = false;
             let val = line.trim_start_matches("name:").trim().trim_matches('"');
             has_name = !val.is_empty();
             if val.is_empty() {
-                findings.push(RawFinding { code: "CCC-AGENT-001".into(), message: "Agent name is missing or empty".into(), span: (line_start, line_start + raw_line.len()) });
+                findings.push(RawFinding {
+                    code: "CCC-AGENT-001".into(),
+                    message: "Agent name is missing or empty".into(),
+                    span: (line_start, line_start + raw_line.len()),
+                });
             }
         } else if line.starts_with("tools:") {
             in_tools_block = true;
@@ -290,7 +337,10 @@ pub fn validate_agent_frontmatter(content: &str) -> Vec<RawFinding> {
                 let inner = after.trim_start_matches('[').trim_end_matches(']');
                 for tool in inner.split(',') {
                     let tool = tool.trim().trim_matches('"').trim_matches('\'');
-                    if !tool.is_empty() && !VALID_TOOLS.contains(&tool) && !tool.starts_with("mcp__") {
+                    if !tool.is_empty()
+                        && !VALID_TOOLS.contains(&tool)
+                        && !tool.starts_with("mcp__")
+                    {
                         findings.push(RawFinding { code: "CCC-AGENT-006".into(), message: format!("Unknown tool '{tool}' — expected one of Read/Write/Edit/Bash/Grep/Glob/Agent/…"), span: (line_start, line_start + raw_line.len()) });
                     }
                 }
@@ -308,10 +358,18 @@ pub fn validate_agent_frontmatter(content: &str) -> Vec<RawFinding> {
             let val = val.trim();
             if let Ok(n) = val.parse::<u64>() {
                 if n == 0 {
-                    findings.push(RawFinding { code: "CCC-AGENT-004".into(), message: "maxTurns must be >= 1".into(), span: (line_start, line_start + raw_line.len()) });
+                    findings.push(RawFinding {
+                        code: "CCC-AGENT-004".into(),
+                        message: "maxTurns must be >= 1".into(),
+                        span: (line_start, line_start + raw_line.len()),
+                    });
                 }
             } else {
-                findings.push(RawFinding { code: "CCC-AGENT-004".into(), message: format!("maxTurns must be a positive integer, got '{val}'"), span: (line_start, line_start + raw_line.len()) });
+                findings.push(RawFinding {
+                    code: "CCC-AGENT-004".into(),
+                    message: format!("maxTurns must be a positive integer, got '{val}'"),
+                    span: (line_start, line_start + raw_line.len()),
+                });
             }
         }
 
@@ -319,7 +377,11 @@ pub fn validate_agent_frontmatter(content: &str) -> Vec<RawFinding> {
             let val = val.trim();
             let valid = ["opus", "sonnet", "haiku", "inherit"];
             if !valid.iter().any(|t| val.contains(t)) {
-                findings.push(RawFinding { code: "CCC-AGENT-002".into(), message: format!("Unknown model tier '{val}' — use opus/sonnet/haiku/inherit"), span: (line_start, line_start + raw_line.len()) });
+                findings.push(RawFinding {
+                    code: "CCC-AGENT-002".into(),
+                    message: format!("Unknown model tier '{val}' — use opus/sonnet/haiku/inherit"),
+                    span: (line_start, line_start + raw_line.len()),
+                });
             }
         }
 
@@ -327,7 +389,14 @@ pub fn validate_agent_frontmatter(content: &str) -> Vec<RawFinding> {
         if let Some(val) = line.strip_prefix("permissionMode:") {
             let val = val.trim().trim_matches('"');
             if !val.is_empty() && !VALID_PERMISSION_MODES.contains(&val) {
-                findings.push(RawFinding { code: "CCC-AGENT-003".into(), message: format!("Unknown permissionMode '{val}' — valid: {}", VALID_PERMISSION_MODES.join(", ")), span: (line_start, line_start + raw_line.len()) });
+                findings.push(RawFinding {
+                    code: "CCC-AGENT-003".into(),
+                    message: format!(
+                        "Unknown permissionMode '{val}' — valid: {}",
+                        VALID_PERMISSION_MODES.join(", ")
+                    ),
+                    span: (line_start, line_start + raw_line.len()),
+                });
             }
         }
 
@@ -335,7 +404,11 @@ pub fn validate_agent_frontmatter(content: &str) -> Vec<RawFinding> {
         if let Some(val) = line.strip_prefix("background:") {
             let val = val.trim();
             if !val.is_empty() && val != "true" && val != "false" {
-                findings.push(RawFinding { code: "CCC-AGENT-007".into(), message: format!("background must be true or false, got '{val}'"), span: (line_start, line_start + raw_line.len()) });
+                findings.push(RawFinding {
+                    code: "CCC-AGENT-007".into(),
+                    message: format!("background must be true or false, got '{val}'"),
+                    span: (line_start, line_start + raw_line.len()),
+                });
             }
         }
 
@@ -343,7 +416,14 @@ pub fn validate_agent_frontmatter(content: &str) -> Vec<RawFinding> {
         if let Some(val) = line.strip_prefix("context:") {
             let val = val.trim().trim_matches('"');
             if !val.is_empty() && !VALID_CONTEXT_VALUES.contains(&val) {
-                findings.push(RawFinding { code: "CCC-AGENT-008".into(), message: format!("Unknown context '{val}' — valid: {}", VALID_CONTEXT_VALUES.join(", ")), span: (line_start, line_start + raw_line.len()) });
+                findings.push(RawFinding {
+                    code: "CCC-AGENT-008".into(),
+                    message: format!(
+                        "Unknown context '{val}' — valid: {}",
+                        VALID_CONTEXT_VALUES.join(", ")
+                    ),
+                    span: (line_start, line_start + raw_line.len()),
+                });
             }
         }
 
@@ -351,7 +431,11 @@ pub fn validate_agent_frontmatter(content: &str) -> Vec<RawFinding> {
         if let Some(val) = line.strip_prefix("initialPrompt:") {
             let val = val.trim().trim_matches('"');
             if val.is_empty() {
-                findings.push(RawFinding { code: "CCC-AGENT-009".into(), message: "initialPrompt is present but empty".into(), span: (line_start, line_start + raw_line.len()) });
+                findings.push(RawFinding {
+                    code: "CCC-AGENT-009".into(),
+                    message: "initialPrompt is present but empty".into(),
+                    span: (line_start, line_start + raw_line.len()),
+                });
             }
         }
 
@@ -359,7 +443,14 @@ pub fn validate_agent_frontmatter(content: &str) -> Vec<RawFinding> {
         if let Some(val) = line.trim_start().strip_prefix("scope:") {
             let val = val.trim().trim_matches('"');
             if !val.is_empty() && !VALID_MEMORY_SCOPES.contains(&val) {
-                findings.push(RawFinding { code: "CCC-AGENT-010".into(), message: format!("Unknown memory scope '{val}' — valid: {}", VALID_MEMORY_SCOPES.join(", ")), span: (line_start, line_start + raw_line.len()) });
+                findings.push(RawFinding {
+                    code: "CCC-AGENT-010".into(),
+                    message: format!(
+                        "Unknown memory scope '{val}' — valid: {}",
+                        VALID_MEMORY_SCOPES.join(", ")
+                    ),
+                    span: (line_start, line_start + raw_line.len()),
+                });
             }
         }
 
@@ -367,16 +458,31 @@ pub fn validate_agent_frontmatter(content: &str) -> Vec<RawFinding> {
         if let Some(val) = line.strip_prefix("effort:") {
             let val = val.trim().trim_matches('"');
             if !val.is_empty() && !VALID_AGENT_EFFORT_LEVELS.contains(&val) {
-                findings.push(RawFinding { code: "CCC-AGENT-012".into(), message: format!("Unknown effort '{val}' — valid: {}", VALID_AGENT_EFFORT_LEVELS.join(", ")), span: (line_start, line_start + raw_line.len()) });
+                findings.push(RawFinding {
+                    code: "CCC-AGENT-012".into(),
+                    message: format!(
+                        "Unknown effort '{val}' — valid: {}",
+                        VALID_AGENT_EFFORT_LEVELS.join(", ")
+                    ),
+                    span: (line_start, line_start + raw_line.len()),
+                });
             }
         }
     }
 
     if !has_description {
-        findings.push(RawFinding { code: "CCC-AGENT-005".into(), message: "Agent description is missing or empty".into(), span: (0, content.find("---").unwrap_or(0)) });
+        findings.push(RawFinding {
+            code: "CCC-AGENT-005".into(),
+            message: "Agent description is missing or empty".into(),
+            span: (0, content.find("---").unwrap_or(0)),
+        });
     }
     if !has_name {
-        findings.push(RawFinding { code: "CCC-AGENT-001".into(), message: "Agent name field is required".into(), span: (0, content.find("---").unwrap_or(0)) });
+        findings.push(RawFinding {
+            code: "CCC-AGENT-001".into(),
+            message: "Agent name field is required".into(),
+            span: (0, content.find("---").unwrap_or(0)),
+        });
     }
 
     findings.sort_by(|a, b| a.span.0.cmp(&b.span.0).then(a.code.cmp(&b.code)));
@@ -387,7 +493,9 @@ fn extract_frontmatter(content: &str) -> Option<&str> {
     let mut parts = content.splitn(3, "---");
     parts.next()?;
     let body = parts.next()?;
-    if body.trim().is_empty() { return None; }
+    if body.trim().is_empty() {
+        return None;
+    }
     Some(body)
 }
 
@@ -418,30 +526,166 @@ mod tests {
         assert!(findings[0].span.0 < findings[1].span.0);
     }
 
-    const VALID_AGENT: &str = "---\nname: my-agent\ndescription: Does useful work.\nmodel: sonnet\nmaxTurns: 20\n---\n";
-    #[test] fn valid_agent_has_no_findings() { assert!(validate_agent_frontmatter(VALID_AGENT).is_empty()); }
-    #[test] fn ccc_agent_004_zero_max_turns() { let i = "---\nname: x\ndescription: y\nmaxTurns: 0\n---\n"; assert!(validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-004")); }
-    #[test] fn ccc_agent_004_non_integer_turns() { let i = "---\nname: x\ndescription: y\nmaxTurns: many\n---\n"; assert!(validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-004")); }
-    #[test] fn ccc_agent_002_unknown_model() { let i = "---\nname: x\ndescription: y\nmodel: gpt-4\n---\n"; assert!(validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-002")); }
-    #[test] fn ccc_agent_005_missing_description() { let i = "---\nname: x\n---\n"; assert!(validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-005")); }
-    #[test] fn haiku_model_is_valid() { let i = "---\nname: x\ndescription: y\nmodel: haiku\nmaxTurns: 5\n---\n"; assert!(!validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-002")); }
-    #[test] fn ccc_agent_001_missing_name() { let i = "---\ndescription: Does useful work.\n---\n"; assert!(validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-001")); }
-    #[test] fn ccc_agent_006_unknown_tool() { let i = "---\nname: x\ndescription: y\ntools:\n  - Read\n  - SuperTool\n---\n"; assert!(validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-006")); }
-    #[test] fn valid_tools_list_clean() { let i = "---\nname: x\ndescription: y\ntools:\n  - Read\n  - Write\n  - Bash\n---\n"; assert!(!validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-006")); }
-    #[test] fn mcp_prefixed_tool_is_valid() { let i = "---\nname: x\ndescription: y\ntools:\n  - mcp__my_server__my_tool\n---\n"; assert!(!validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-006")); }
+    const VALID_AGENT: &str =
+        "---\nname: my-agent\ndescription: Does useful work.\nmodel: sonnet\nmaxTurns: 20\n---\n";
+    #[test]
+    fn valid_agent_has_no_findings() {
+        assert!(validate_agent_frontmatter(VALID_AGENT).is_empty());
+    }
+    #[test]
+    fn ccc_agent_004_zero_max_turns() {
+        let i = "---\nname: x\ndescription: y\nmaxTurns: 0\n---\n";
+        assert!(validate_agent_frontmatter(i)
+            .iter()
+            .any(|f| f.code == "CCC-AGENT-004"));
+    }
+    #[test]
+    fn ccc_agent_004_non_integer_turns() {
+        let i = "---\nname: x\ndescription: y\nmaxTurns: many\n---\n";
+        assert!(validate_agent_frontmatter(i)
+            .iter()
+            .any(|f| f.code == "CCC-AGENT-004"));
+    }
+    #[test]
+    fn ccc_agent_002_unknown_model() {
+        let i = "---\nname: x\ndescription: y\nmodel: gpt-4\n---\n";
+        assert!(validate_agent_frontmatter(i)
+            .iter()
+            .any(|f| f.code == "CCC-AGENT-002"));
+    }
+    #[test]
+    fn ccc_agent_005_missing_description() {
+        let i = "---\nname: x\n---\n";
+        assert!(validate_agent_frontmatter(i)
+            .iter()
+            .any(|f| f.code == "CCC-AGENT-005"));
+    }
+    #[test]
+    fn haiku_model_is_valid() {
+        let i = "---\nname: x\ndescription: y\nmodel: haiku\nmaxTurns: 5\n---\n";
+        assert!(!validate_agent_frontmatter(i)
+            .iter()
+            .any(|f| f.code == "CCC-AGENT-002"));
+    }
+    #[test]
+    fn ccc_agent_001_missing_name() {
+        let i = "---\ndescription: Does useful work.\n---\n";
+        assert!(validate_agent_frontmatter(i)
+            .iter()
+            .any(|f| f.code == "CCC-AGENT-001"));
+    }
+    #[test]
+    fn ccc_agent_006_unknown_tool() {
+        let i = "---\nname: x\ndescription: y\ntools:\n  - Read\n  - SuperTool\n---\n";
+        assert!(validate_agent_frontmatter(i)
+            .iter()
+            .any(|f| f.code == "CCC-AGENT-006"));
+    }
+    #[test]
+    fn valid_tools_list_clean() {
+        let i = "---\nname: x\ndescription: y\ntools:\n  - Read\n  - Write\n  - Bash\n---\n";
+        assert!(!validate_agent_frontmatter(i)
+            .iter()
+            .any(|f| f.code == "CCC-AGENT-006"));
+    }
+    #[test]
+    fn mcp_prefixed_tool_is_valid() {
+        let i = "---\nname: x\ndescription: y\ntools:\n  - mcp__my_server__my_tool\n---\n";
+        assert!(!validate_agent_frontmatter(i)
+            .iter()
+            .any(|f| f.code == "CCC-AGENT-006"));
+    }
 
     // Phase B: new agent frontmatter fields
-    #[test] fn ccc_agent_003_invalid_permission_mode() { let i = "---\nname: x\ndescription: y\npermissionMode: bogus\n---\n"; assert!(validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-003")); }
-    #[test] fn valid_permission_mode_plan_clean() { let i = "---\nname: x\ndescription: y\npermissionMode: plan\n---\n"; assert!(!validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-003")); }
-    #[test] fn ccc_agent_007_background_not_bool() { let i = "---\nname: x\ndescription: y\nbackground: yes-please\n---\n"; assert!(validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-007")); }
-    #[test] fn valid_background_true_clean() { let i = "---\nname: x\ndescription: y\nbackground: true\n---\n"; assert!(!validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-007")); }
-    #[test] fn ccc_agent_008_invalid_context() { let i = "---\nname: x\ndescription: y\ncontext: spawn\n---\n"; assert!(validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-008")); }
-    #[test] fn valid_context_fork_clean() { let i = "---\nname: x\ndescription: y\ncontext: fork\n---\n"; assert!(!validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-008")); }
-    #[test] fn ccc_agent_009_empty_initial_prompt() { let i = "---\nname: x\ndescription: y\ninitialPrompt: \n---\n"; assert!(validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-009")); }
-    #[test] fn ccc_agent_010_invalid_memory_scope() { let i = "---\nname: x\ndescription: y\nmemory:\n  scope: global\n---\n"; assert!(validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-010")); }
-    #[test] fn valid_memory_scope_project_clean() { let i = "---\nname: x\ndescription: y\nmemory:\n  scope: project\n---\n"; assert!(!validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-010")); }
-    #[test] fn ccc_agent_011_unknown_hook_event() { let i = "---\nname: x\ndescription: y\nhooks:\n  BogusEvent:\n    - type: command\n---\n"; assert!(validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-011")); }
-    #[test] fn valid_hook_event_pre_tool_use_clean_in_agent() { let i = "---\nname: x\ndescription: y\nhooks:\n  PreToolUse:\n    - type: command\n---\n"; assert!(!validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-011")); }
-    #[test] fn ccc_agent_012_invalid_effort() { let i = "---\nname: x\ndescription: y\neffort: extreme\n---\n"; assert!(validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-012")); }
-    #[test] fn valid_effort_xhigh_clean_agent() { let i = "---\nname: x\ndescription: y\neffort: xhigh\n---\n"; assert!(!validate_agent_frontmatter(i).iter().any(|f| f.code == "CCC-AGENT-012")); }
+    #[test]
+    fn ccc_agent_003_invalid_permission_mode() {
+        let i = "---\nname: x\ndescription: y\npermissionMode: bogus\n---\n";
+        assert!(validate_agent_frontmatter(i)
+            .iter()
+            .any(|f| f.code == "CCC-AGENT-003"));
+    }
+    #[test]
+    fn valid_permission_mode_plan_clean() {
+        let i = "---\nname: x\ndescription: y\npermissionMode: plan\n---\n";
+        assert!(!validate_agent_frontmatter(i)
+            .iter()
+            .any(|f| f.code == "CCC-AGENT-003"));
+    }
+    #[test]
+    fn ccc_agent_007_background_not_bool() {
+        let i = "---\nname: x\ndescription: y\nbackground: yes-please\n---\n";
+        assert!(validate_agent_frontmatter(i)
+            .iter()
+            .any(|f| f.code == "CCC-AGENT-007"));
+    }
+    #[test]
+    fn valid_background_true_clean() {
+        let i = "---\nname: x\ndescription: y\nbackground: true\n---\n";
+        assert!(!validate_agent_frontmatter(i)
+            .iter()
+            .any(|f| f.code == "CCC-AGENT-007"));
+    }
+    #[test]
+    fn ccc_agent_008_invalid_context() {
+        let i = "---\nname: x\ndescription: y\ncontext: spawn\n---\n";
+        assert!(validate_agent_frontmatter(i)
+            .iter()
+            .any(|f| f.code == "CCC-AGENT-008"));
+    }
+    #[test]
+    fn valid_context_fork_clean() {
+        let i = "---\nname: x\ndescription: y\ncontext: fork\n---\n";
+        assert!(!validate_agent_frontmatter(i)
+            .iter()
+            .any(|f| f.code == "CCC-AGENT-008"));
+    }
+    #[test]
+    fn ccc_agent_009_empty_initial_prompt() {
+        let i = "---\nname: x\ndescription: y\ninitialPrompt: \n---\n";
+        assert!(validate_agent_frontmatter(i)
+            .iter()
+            .any(|f| f.code == "CCC-AGENT-009"));
+    }
+    #[test]
+    fn ccc_agent_010_invalid_memory_scope() {
+        let i = "---\nname: x\ndescription: y\nmemory:\n  scope: global\n---\n";
+        assert!(validate_agent_frontmatter(i)
+            .iter()
+            .any(|f| f.code == "CCC-AGENT-010"));
+    }
+    #[test]
+    fn valid_memory_scope_project_clean() {
+        let i = "---\nname: x\ndescription: y\nmemory:\n  scope: project\n---\n";
+        assert!(!validate_agent_frontmatter(i)
+            .iter()
+            .any(|f| f.code == "CCC-AGENT-010"));
+    }
+    #[test]
+    fn ccc_agent_011_unknown_hook_event() {
+        let i = "---\nname: x\ndescription: y\nhooks:\n  BogusEvent:\n    - type: command\n---\n";
+        assert!(validate_agent_frontmatter(i)
+            .iter()
+            .any(|f| f.code == "CCC-AGENT-011"));
+    }
+    #[test]
+    fn valid_hook_event_pre_tool_use_clean_in_agent() {
+        let i = "---\nname: x\ndescription: y\nhooks:\n  PreToolUse:\n    - type: command\n---\n";
+        assert!(!validate_agent_frontmatter(i)
+            .iter()
+            .any(|f| f.code == "CCC-AGENT-011"));
+    }
+    #[test]
+    fn ccc_agent_012_invalid_effort() {
+        let i = "---\nname: x\ndescription: y\neffort: extreme\n---\n";
+        assert!(validate_agent_frontmatter(i)
+            .iter()
+            .any(|f| f.code == "CCC-AGENT-012"));
+    }
+    #[test]
+    fn valid_effort_xhigh_clean_agent() {
+        let i = "---\nname: x\ndescription: y\neffort: xhigh\n---\n";
+        assert!(!validate_agent_frontmatter(i)
+            .iter()
+            .any(|f| f.code == "CCC-AGENT-012"));
+    }
 }

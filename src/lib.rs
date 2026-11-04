@@ -8,6 +8,8 @@ pub mod ocel_accumulator;
 
 pub mod virtual_docs;
 
+pub mod harness_docs;
+
 pub mod declare_model;
 
 pub mod completion;
@@ -20,6 +22,8 @@ pub mod semantic_tokens;
 
 pub mod hover;
 
+pub mod navigation;
+
 pub mod analyzers;
 
 pub mod conformance;
@@ -28,10 +32,41 @@ pub mod coverage;
 
 pub mod scan;
 
+pub mod workspace_symbols;
+
 pub mod inventory;
 
 pub mod receipt;
 
 pub mod quickfix;
 
+pub mod rename;
+
+pub mod inlay;
+
+pub mod formatting;
+
+pub mod selection;
+
 pub use backend::ClaudeCodeConfigBackend as Backend;
+pub mod code_lens;
+
+pub mod signature_help;
+
+pub mod tokens_delta;
+
+pub mod color;
+
+pub mod hierarchy;
+
+pub mod admission;
+
+pub mod moniker;
+
+pub mod overlay;
+
+pub mod provider_registry;
+
+pub mod harness_ops;
+
+pub mod standing;

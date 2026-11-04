@@ -56,29 +56,42 @@ pub fn server_capabilities() -> ServerCapabilities {
         }),
 
         // Not yet implemented — Phase 1 of the "perfect LSP" roadmap.
-        // code_lens_provider: Some(/* wired in backend */),
-        // inlay_hint_provider: Some(/* wired in backend */),
-        // definition_provider: Some(/* wired in backend */),
-        // document_highlight_provider: Some(/* wired in backend */),
-        // document_link_provider: Some(/* wired in backend */),
-        // document_symbol_provider: Some(/* wired in backend */),
-        // folding_range_provider: Some(/* wired in backend */),
-        // document_formatting_provider: Some(/* wired in backend */),
+        code_lens_provider: Some(CodeLensOptions {
+            resolve_provider: None,
+        }),
+        inlay_hint_provider: Some(OneOf::Left(true)),
+        definition_provider: Some(OneOf::Left(true)),
+        document_highlight_provider: Some(OneOf::Left(true)),
+        // Markdown navigation (markdown_nav.rs) — served for markdown config
+        // surfaces (CLAUDE.md / SKILL.md / agents/*.md) by backend.rs.
+        document_link_provider: Some(DocumentLinkOptions {
+            resolve_provider: Some(false),
+            work_done_progress_options: WorkDoneProgressOptions::default(),
+        }),
+        document_symbol_provider: Some(OneOf::Left(true)),
+        folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
+        document_formatting_provider: Some(OneOf::Left(true)),
         // inline_value_provider: Some(/* wired in backend */),
         // linked_editing_range_provider: Some(/* wired in backend */),
-        // moniker_provider: Some(/* wired in backend */),
-        // call_hierarchy_provider: Some(/* wired in backend */),
-        // rename_provider: Some(/* wired in backend */),
+        moniker_provider: Some(OneOf::Left(true)),
+        call_hierarchy_provider: Some(CallHierarchyServerCapability::Simple(true)),
+        rename_provider: Some(OneOf::Left(true)),
         // type_hierarchy_provider: Some(/* wired in backend */),
-        // document_range_formatting_provider: Some(/* wired in backend */),
-        // references_provider: Some(/* wired in backend */),
-        // selection_range_provider: Some(/* wired in backend */),
-        // signature_help_provider: Some(/* wired in backend */),
-        // workspace_symbol_provider: Some(/* wired in backend */),
-        // color_provider: Some(/* wired in backend */),
+        document_range_formatting_provider: Some(OneOf::Left(true)),
+        references_provider: Some(OneOf::Left(true)),
+        selection_range_provider: Some(SelectionRangeProviderCapability::Simple(true)),
+        signature_help_provider: Some(SignatureHelpOptions {
+            trigger_characters: Some(vec!["(".to_string()]),
+            ..Default::default()
+        }),
+        workspace_symbol_provider: Some(OneOf::Left(true)),
+        color_provider: Some(ColorProviderCapability::Simple(true)),
         // declaration_provider: Some(/* wired in backend */),
         // implementation_provider: Some(/* wired in backend */),
-        // document_on_type_formatting_provider: Some(/* wired in backend */),
+        document_on_type_formatting_provider: Some(DocumentOnTypeFormattingOptions {
+            first_trigger_character: "".to_string(),
+            ..Default::default()
+        }),
         // type_definition_provider: Some(/* wired in backend */),
         ..Default::default()
     }
@@ -96,7 +109,9 @@ mod tests {
     #[test]
     fn advertises_completion_with_trigger_characters() {
         let caps = server_capabilities();
-        let completion = caps.completion_provider.expect("completion_provider must be Some");
+        let completion = caps
+            .completion_provider
+            .expect("completion_provider must be Some");
         assert_eq!(
             completion.trigger_characters,
             Some(vec!["\"".to_string(), ":".to_string()])
@@ -106,7 +121,10 @@ mod tests {
     #[test]
     fn advertises_semantic_tokens_with_nonempty_legend() {
         let caps = server_capabilities();
-        match caps.semantic_tokens_provider.expect("semantic_tokens_provider must be Some") {
+        match caps
+            .semantic_tokens_provider
+            .expect("semantic_tokens_provider must be Some")
+        {
             SemanticTokensServerCapabilities::SemanticTokensOptions(opts) => {
                 assert!(!opts.legend.token_types.is_empty());
                 assert_eq!(opts.full, Some(SemanticTokensFullOptions::Bool(true)));
@@ -118,7 +136,10 @@ mod tests {
     #[test]
     fn advertises_code_action_quickfix_kind() {
         let caps = server_capabilities();
-        match caps.code_action_provider.expect("code_action_provider must be Some") {
+        match caps
+            .code_action_provider
+            .expect("code_action_provider must be Some")
+        {
             CodeActionProviderCapability::Options(opts) => {
                 assert_eq!(opts.code_action_kinds, Some(vec![CodeActionKind::QUICKFIX]));
             }
@@ -129,7 +150,32 @@ mod tests {
     #[test]
     fn advertises_execute_command_with_conformance_audit() {
         let caps = server_capabilities();
-        let ec = caps.execute_command_provider.expect("execute_command_provider must be Some");
-        assert!(ec.commands.contains(&"claude-code-config/conformanceAudit".to_string()));
+        let ec = caps
+            .execute_command_provider
+            .expect("execute_command_provider must be Some");
+        assert!(ec
+            .commands
+            .contains(&"claude-code-config/conformanceAudit".to_string()));
+    }
+
+    #[test]
+    fn advertises_document_symbol_provider() {
+        assert!(server_capabilities().document_symbol_provider.is_some());
+    }
+
+    #[test]
+    fn advertises_folding_range_provider() {
+        assert_eq!(
+            server_capabilities().folding_range_provider,
+            Some(FoldingRangeProviderCapability::Simple(true))
+        );
+    }
+
+    #[test]
+    fn advertises_document_link_provider_without_resolve() {
+        let dl = server_capabilities()
+            .document_link_provider
+            .expect("document_link_provider must be Some");
+        assert_eq!(dl.resolve_provider, Some(false));
     }
 }

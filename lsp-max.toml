@@ -1,0 +1,34 @@
+# lsp-max.toml — compositor manifest for the claude-code-config-lsp deployment.
+#
+# Schema (src/config.rs in lsp-max-compositor): CompositorConfig { server: Vec<ServerEntry> }.
+# ServerEntry keys, exactly: id (String, required), primary_extensions (Vec<String>,
+# required — no serde default, the key must be present even when empty),
+# secondary_extensions (Vec<String>, required), priority (String, required: "full" |
+# "semantic" | "secondary" | "lsif" | anything else maps to DiagnosticsOnly),
+# andon_code_prefixes (Option<Vec<String>>), command (Option<String>, None = not
+# auto-spawned), args (Option<Vec<String>>, default ["serve", "--stdio"]).
+# There is no `name` and no `matchers` key in the schema. Unknown keys are silently
+# ignored by serde (no deny_unknown_fields), so an off-schema key never errors —
+# keep the file to the eight schema keys only.
+[[server]]
+id = "claude-code-config-lsp"
+primary_extensions = [".json", ".md"]
+secondary_extensions = []
+priority = "diagnostics-only"
+andon_code_prefixes = ["CCC-"]
+command = "/Users/sac/claude-code-config-lsp/target/release/claude-code-config-lsp"
+args = ["serve", "--stdio"]
+
+# Second child: general-JSON routing to a *second* JSON child is not expressed here
+# because no second general-JSON LSP binary exists on this machine — this entry is a
+# Justfile LSP (built at /Users/sac/lsp-max/target/release/justfile-lsp, examples/justfile-lsp
+# in the lsp-max repo), routed on .just, which this server never claims.
+# Absolute path because justfile-lsp is not installed on PATH.
+[[server]]
+id = "justfile-lsp"
+primary_extensions = [".just"]
+secondary_extensions = []
+priority = "diagnostics-only"
+andon_code_prefixes = ["JUST-"]
+command = "/Users/sac/lsp-max/target/release/justfile-lsp"
+args = []

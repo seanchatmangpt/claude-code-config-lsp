@@ -122,7 +122,11 @@ pub fn scan_report(root: &str) -> ScanReport {
         }
     }
     findings.sort_by(|a, b| a.file.cmp(&b.file).then(a.code.cmp(&b.code)));
-    ScanReport { target: root.to_string(), count: findings.len(), findings }
+    ScanReport {
+        target: root.to_string(),
+        count: findings.len(),
+        findings,
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -180,7 +184,11 @@ pub fn build_tree(root: &str) -> ConfigTree {
         });
     }
     files.sort_by(|a, b| a.path.cmp(&b.path));
-    ConfigTree { root: root.to_string(), file_count: files.len(), files }
+    ConfigTree {
+        root: root.to_string(),
+        file_count: files.len(),
+        files,
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -246,7 +254,9 @@ fn referenced_hook_paths(settings: &serde_json::Value, root: &Path) -> Vec<PathB
         return out;
     };
     for (_event, matchers) in hooks {
-        let Some(arr) = matchers.as_array() else { continue };
+        let Some(arr) = matchers.as_array() else {
+            continue;
+        };
         for matcher in arr {
             let Some(inner) = matcher.get("hooks").and_then(|h| h.as_array()) else {
                 continue;
@@ -312,7 +322,9 @@ pub fn usage_report(root: &str) -> ConfigUsageReport {
     let mut declared_resolved: BTreeSet<PathBuf> = BTreeSet::new();
     for plugin in &plugin_files {
         let plugin_dir = plugin.parent().unwrap_or(root_path);
-        let Some(json) = read_json(plugin) else { continue };
+        let Some(json) = read_json(plugin) else {
+            continue;
+        };
         if let Some(skills) = json.get("skills").and_then(|s| s.as_object()) {
             for (name, decl) in skills {
                 if let Some(rel) = decl.get("path").and_then(|p| p.as_str()) {
@@ -466,9 +478,9 @@ pub struct WorkspaceConformance {
 pub fn classify_severity(code: &str, message: &str) -> &'static str {
     match code {
         // JSON
-        "CCC-JSON-001" | "CCC-JSON-002" | "CCC-JSON-003" | "CCC-JSON-004" |
-        "CCC-JSON-005" | "CCC-JSON-007" | "CCC-JSON-009" | "CCC-JSON-010" |
-        "CCC-JSON-011" | "CCC-JSON-012" | "CCC-JSON-013" => "error",
+        "CCC-JSON-001" | "CCC-JSON-002" | "CCC-JSON-003" | "CCC-JSON-004" | "CCC-JSON-005"
+        | "CCC-JSON-007" | "CCC-JSON-009" | "CCC-JSON-010" | "CCC-JSON-011" | "CCC-JSON-012"
+        | "CCC-JSON-013" => "error",
         "CCC-JSON-006" | "CCC-JSON-008" => "warning",
 
         // Markdown
@@ -482,15 +494,14 @@ pub fn classify_severity(code: &str, message: &str) -> &'static str {
         "CCC-FM-005" => "info",
 
         // Skill Frontmatter specifically
-        "CCC-SKILL-001" | "CCC-SKILL-002" | "CCC-SKILL-003" | "CCC-SKILL-004" |
-        "CCC-SKILL-006" | "CCC-SKILL-007" | "CCC-SKILL-008" | "CCC-SKILL-009" |
-        "CCC-SKILL-010" => "error",
+        "CCC-SKILL-001" | "CCC-SKILL-002" | "CCC-SKILL-003" | "CCC-SKILL-004" | "CCC-SKILL-006"
+        | "CCC-SKILL-007" | "CCC-SKILL-008" | "CCC-SKILL-009" | "CCC-SKILL-010" => "error",
         "CCC-SKILL-005" => "warning",
 
         // Agent Frontmatter specifically
-        "CCC-AGENT-001" | "CCC-AGENT-002" | "CCC-AGENT-003" | "CCC-AGENT-004" |
-        "CCC-AGENT-007" | "CCC-AGENT-008" | "CCC-AGENT-009" | "CCC-AGENT-010" |
-        "CCC-AGENT-011" | "CCC-AGENT-012" => "error",
+        "CCC-AGENT-001" | "CCC-AGENT-002" | "CCC-AGENT-003" | "CCC-AGENT-004" | "CCC-AGENT-007"
+        | "CCC-AGENT-008" | "CCC-AGENT-009" | "CCC-AGENT-010" | "CCC-AGENT-011"
+        | "CCC-AGENT-012" => "error",
         "CCC-AGENT-005" => {
             if message.contains("exceeds 1024") {
                 "warning"
@@ -510,7 +521,12 @@ pub fn classify_severity(code: &str, message: &str) -> &'static str {
 
         // Fallbacks based on category patterns
         _ if code.starts_with("CCC-JSON-") => "error",
-        _ if code.starts_with("CCC-FM-") || code.starts_with("CCC-AGENT-") || code.starts_with("CCC-SKILL-") => "error",
+        _ if code.starts_with("CCC-FM-")
+            || code.starts_with("CCC-AGENT-")
+            || code.starts_with("CCC-SKILL-") =>
+        {
+            "error"
+        }
         _ if code.starts_with("CCC-MD-") => "warning",
         _ if code.starts_with("CCC-HOOK-") => "warning",
         _ if code.starts_with("CCC-TOML-") => "warning",
@@ -537,7 +553,8 @@ pub fn conformance_report(root: &str) -> WorkspaceConformance {
         };
         surfaces_checked += 1;
 
-        let relative_path = path.strip_prefix(root_path)
+        let relative_path = path
+            .strip_prefix(root_path)
             .unwrap_or(&path)
             .to_string_lossy()
             .to_string();
@@ -658,7 +675,10 @@ pub fn fix_report(root: &str, apply: bool) -> FixReport {
 
         // Insert $schema as the first key by rebuilding the object.
         let mut new_obj = serde_json::Map::new();
-        new_obj.insert("$schema".to_string(), serde_json::Value::String(schema_url.to_string()));
+        new_obj.insert(
+            "$schema".to_string(),
+            serde_json::Value::String(schema_url.to_string()),
+        );
         for (k, v) in obj.iter() {
             new_obj.insert(k.clone(), v.clone());
         }
@@ -670,10 +690,7 @@ pub fn fix_report(root: &str, apply: bool) -> FixReport {
 
         proposals.push(FixProposal {
             file: path_str.clone(),
-            description: format!(
-                "Add missing \"$schema\": \"{}\" to {}",
-                schema_url, surface
-            ),
+            description: format!("Add missing \"$schema\": \"{}\" to {}", schema_url, surface),
             new_content,
         });
     }
@@ -702,10 +719,16 @@ mod tests {
     #[test]
     fn surface_refines_json_and_markdown() {
         assert_eq!(surface_of("/x/.claude/settings.json"), "settings.json");
-        assert_eq!(surface_of("/x/.claude/settings.local.json"), "settings.local.json");
+        assert_eq!(
+            surface_of("/x/.claude/settings.local.json"),
+            "settings.local.json"
+        );
         assert_eq!(surface_of("/x/.mcp.json"), "mcp.json");
         assert_eq!(surface_of("/x/.claude-plugin/plugin.json"), "plugin.json");
-        assert_eq!(surface_of("/x/.claude-plugin/marketplace.json"), "marketplace.json");
+        assert_eq!(
+            surface_of("/x/.claude-plugin/marketplace.json"),
+            "marketplace.json"
+        );
         assert_eq!(surface_of("/x/CLAUDE.md"), "claude_md");
         assert_eq!(surface_of("/x/AGENTS.md"), "agents_md");
         assert_eq!(surface_of("/x/.claude/agents/w.md"), "agent");
@@ -757,9 +780,15 @@ mod tests {
                 ".claude/skills/example/SKILL.md",
                 "---\nname: example\ndescription: A fixture skill.\n---\nExample skill body.\n",
             );
-            write(".claude/lsp-max-auto.toml", "edition = \"2024\"\nversion = \"26.7.3\"\n");
+            write(
+                ".claude/lsp-max-auto.toml",
+                "edition = \"2024\"\nversion = \"26.7.3\"\n",
+            );
             write("hooks/session-start.sh", "#!/bin/sh\necho fixture\n");
-            write(".mcp.json", r#"{"mcpServers": {"example": {"command": "example-mcp"}}}"#);
+            write(
+                ".mcp.json",
+                r#"{"mcpServers": {"example": {"command": "example-mcp"}}}"#,
+            );
             Self { dir }
         }
 
@@ -779,8 +808,19 @@ mod tests {
         let fixture = FixtureRepo::new("build-tree");
         let tree = build_tree(fixture.path());
         let surfaces: BTreeSet<&str> = tree.files.iter().map(|f| f.surface).collect();
-        for expected in ["settings.json", "plugin.json", "agent", "skill", "toml", "hook", "mcp.json"] {
-            assert!(surfaces.contains(expected), "missing surface {expected} in export tree");
+        for expected in [
+            "settings.json",
+            "plugin.json",
+            "agent",
+            "skill",
+            "toml",
+            "hook",
+            "mcp.json",
+        ] {
+            assert!(
+                surfaces.contains(expected),
+                "missing surface {expected} in export tree"
+            );
         }
         // A json node's content parses to an object.
         let settings = tree
@@ -799,7 +839,10 @@ mod tests {
         assert!(report.orphaned_on_disk.iter().any(|i| i.surface == "skill"));
         assert!(report.orphaned_on_disk.iter().any(|i| i.surface == "agent"));
         assert!(
-            report.declared_but_missing.iter().all(|i| !i.path_or_key.contains("validate-config")),
+            report
+                .declared_but_missing
+                .iter()
+                .all(|i| !i.path_or_key.contains("validate-config")),
             "fixture declares nothing named validate-config"
         );
         assert!(report.total_items > 0);

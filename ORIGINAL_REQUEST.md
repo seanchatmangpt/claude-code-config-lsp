@@ -36,9 +36,9 @@ Every command must have programmatic unit/integration tests added under `tests/`
 ## Acceptance Criteria
 
 ### CLI Commands Verification
-- [ ] Running `cargo run -- conformance` successfully parses the current workspace and prints a conformance report.
-- [ ] Running `cargo run -- receipt verify` validates the receipt chain without errors.
-- [ ] Running `cargo run -- fix` lists proposed changes without editing target files.
-- [ ] Running `cargo run -- fix --apply` updates the config files and resolves repairable diagnostics.
-- [ ] All tests build and pass via `cargo test`.
-- [ ] Code passes formatting and clippy (`cargo fmt --check` and `cargo clippy -- -D warnings`).
+- [x] Running `cargo run -- conformance` successfully parses the current workspace and prints a conformance report. (Ran green: `cargo test --test acceptance_cli` 13/13 incl. json/yaml/table format vectors, exit 0; manual `conformance tests/fixtures/claude-config --format yaml|table` exit 0.)
+- [x] Running `cargo run -- receipt verify` validates the receipt chain without errors. (Ran green: acceptance tests `receipt_verify_succeeds_on_valid_chain` exit 0, tamper tests exit non-zero.)
+- [x] Running `cargo run -- fix` lists proposed changes without editing target files. (Ran green: `fix_dry_run_shows_proposals_without_writing` — byte-identical file before/after.)
+- [x] Running `cargo run -- fix --apply` updates the config files and resolves repairable diagnostics. (Ran green: `fix_apply_writes_schema_key_to_disk` + `-y` alias.)
+- [x] All tests build and pass via `cargo test`. (Ran green: full suite 2026-11-03 — 27 test targets, every line `test result: ok`, 0 failures; includes 253 lib tests + 13 acceptance_cli tests.)
+- [ ] Code passes formatting and clippy (`cargo fmt --check` and `cargo clippy -- -D warnings`). (BLOCKED pre-existing: baseline clippy fails `clippy::mutable_key_type` in lib before any lane edit.)

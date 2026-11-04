@@ -82,8 +82,21 @@ impl ClaudeCodeConfigBackend {
     /// evaluating cross-file rules or answering a `max/health`-style query)
     /// without blocking concurrent `did_change` notifications.
     #[allow(dead_code)]
+    /// Corpus roots for navigation/hierarchy/code-lens providers.
+    fn provider_roots(&self) -> Vec<std::path::PathBuf> {
+        crate::provider_registry::default_roots()
+    }
+
+    /// On-disk corpus of `.md` config documents for hierarchy/corpus-backed
+    /// providers.
+    fn provider_corpus(&self) -> crate::hierarchy::Corpus {
+        crate::provider_registry::corpus_from_roots(&self.provider_roots())
+    }
+
+    #[allow(dead_code)] // harness seam — retained for upcoming OCEL snapshot wiring
     fn rule_pack_snapshot(&self) -> RulePackSnapshot {
-        self.index.snapshot(std::sync::Arc::new(self.packs.packs().to_vec()))
+        self.index
+            .snapshot(std::sync::Arc::new(self.packs.packs().to_vec()))
     }
 
     /// Which of the three layers a config file resolves from: the user's
@@ -128,14 +141,23 @@ impl ClaudeCodeConfigBackend {
             id: self.accumulator.next_event_id(),
             activity: activity.to_string(),
             timestamp: format!("{ts}"),
-            relationships: vec![OcelRelationship { object_id: uri.to_string(), qualifier: None }],
+            relationships: vec![OcelRelationship {
+                object_id: uri.to_string(),
+                qualifier: None,
+            }],
             attributes: serde_json::Map::new(),
         };
         self.accumulator.accumulate(event);
     }
 }
 
-fn make_finding_with_source(code: &str, message: &str, category: &str, source: &'static str, range: Range) -> Finding {
+fn make_finding_with_source(
+    code: &str,
+    message: &str,
+    category: &str,
+    source: &'static str,
+    range: Range,
+) -> Finding {
     let diag = Diagnostic {
         range,
         severity: Some(DiagnosticSeverity::WARNING),
@@ -193,25 +215,51 @@ fn replace_action(
     range: Range,
     new_text: &str,
 ) -> CodeActionOrCommand {
+    // Url is interior-mutable (clippy::mutable_key_type); key equality is by
+    // serialized URL string, which is the identity the protocol uses.
+    #[allow(clippy::mutable_key_type)]
     let mut changes = std::collections::HashMap::new();
-    changes.insert(uri.clone(), vec![TextEdit { range, new_text: new_text.to_string() }]);
+    changes.insert(
+        uri.clone(),
+        vec![TextEdit {
+            range,
+            new_text: new_text.to_string(),
+        }],
+    );
     CodeActionOrCommand::CodeAction(CodeAction {
         title: title.to_string(),
         kind: Some(CodeActionKind::QUICKFIX),
         diagnostics: Some(vec![diagnostic.clone()]),
-        edit: Some(WorkspaceEdit { changes: Some(changes), ..Default::default() }),
+        edit: Some(WorkspaceEdit {
+            changes: Some(changes),
+            ..Default::default()
+        }),
         ..Default::default()
     })
 }
 
 impl RulePackServer for ClaudeCodeConfigBackend {
-    fn rule_packs(&self) -> &ValidatedRulePackSet { &self.packs }
-    fn grammar(&self) -> tree_sitter::Language { tree_sitter_json::LANGUAGE.into() }
-    fn server_name(&self) -> &'static str { "claudecodeconfig" }
-    fn client(&self) -> &Client { &self.client }
-    fn adapter(&self) -> &AutoLspAdapter { &self.adapter }
-    fn workspace_index(&self) -> Option<&WorkspaceIndex> { Some(&self.index) }
-    fn cross_file_rules(&self) -> &[CrossFileRule] { &self.cross_file_rules }
+    fn rule_packs(&self) -> &ValidatedRulePackSet {
+        &self.packs
+    }
+    fn grammar(&self) -> tree_sitter::Language {
+        tree_sitter_json::LANGUAGE.into()
+    }
+    fn server_name(&self) -> &'static str {
+        "claudecodeconfig"
+    }
+    fn client(&self) -> &Client {
+        &self.client
+    }
+    fn adapter(&self) -> &AutoLspAdapter {
+        &self.adapter
+    }
+    fn workspace_index(&self) -> Option<&WorkspaceIndex> {
+        Some(&self.index)
+    }
+    fn cross_file_rules(&self) -> &[CrossFileRule] {
+        &self.cross_file_rules
+    }
 
     /// Extends the trait default (`text_document_sync` + `diagnostic_provider`,
     /// the latter depending on `self.cross_file_rules()`) with the fields
@@ -228,7 +276,9 @@ impl RulePackServer for ClaudeCodeConfigBackend {
                 identifier: Some(self.server_name().to_string()),
                 inter_file_dependencies: has_cross_file,
                 workspace_diagnostics: has_cross_file,
-                work_done_progress_options: WorkDoneProgressOptions { work_done_progress: None },
+                work_done_progress_options: WorkDoneProgressOptions {
+                    work_done_progress: None,
+                },
             })),
             ..crate::capabilities::server_capabilities()
         }
@@ -260,7 +310,10 @@ impl RulePackServer for ClaudeCodeConfigBackend {
             .collect();
 
         let finding_count = sync.len();
-        self.emit_ocel_event("DiagnosticsPublished", &format!("uri={uri_str},count={finding_count}"));
+        self.emit_ocel_event(
+            "DiagnosticsPublished",
+            &format!("uri={uri_str},count={finding_count}"),
+        );
         (sync, vec![])
     }
 }
@@ -315,13 +368,42 @@ impl LanguageServer for ClaudeCodeConfigBackend {
     }
 
     async fn hover(&self, params: HoverParams) -> lsp_max::jsonrpc::Result<Option<Hover>> {
-        self.emit_ocel_event("HoverRequested", params.text_document_position_params.text_document.uri.as_str());
-        crate::hover::text_document_hover(params).await
+        let uri = params
+            .text_document_position_params
+            .text_document
+            .uri
+            .clone();
+        self.emit_ocel_event("HoverRequested", uri.as_str());
+        let position = params.text_document_position_params.position;
+        // Position-aware: resolve against the adapter's stored document +
+        // tree-sitter tree; None when the document isn't open.
+        let hover = self.adapter().get_document(&uri, |doc| {
+            crate::hover::hover_at_position(
+                uri.as_str(),
+                doc.as_str(),
+                doc.tree.root_node().into(),
+                position,
+            )
+        });
+        Ok(hover.flatten())
     }
 
-    async fn completion(&self, params: CompletionParams) -> lsp_max::jsonrpc::Result<Option<CompletionResponse>> {
-        self.emit_ocel_event("CompletionRequested", params.text_document_position.text_document.uri.as_str());
-        crate::completion::completion(params).await
+    async fn completion(
+        &self,
+        params: CompletionParams,
+    ) -> lsp_max::jsonrpc::Result<Option<CompletionResponse>> {
+        let uri = params.text_document_position.text_document.uri.clone();
+        self.emit_ocel_event("CompletionRequested", uri.as_str());
+        let position = params.text_document_position.position;
+        let completion = self.adapter().get_document(&uri, |doc| {
+            crate::completion::completions_at_position(
+                uri.as_str(),
+                doc.as_str(),
+                doc.tree.root_node().into(),
+                position,
+            )
+        });
+        Ok(completion.flatten())
     }
 
     /// Pull-diagnostics (`textDocument/diagnostic`). The default trait impl
@@ -363,16 +445,23 @@ impl LanguageServer for ClaudeCodeConfigBackend {
         let uri = params.text_document.uri.clone();
         self.emit_ocel_event("CodeActionRequested", uri.as_str());
 
-        let Some(content) = self.adapter().get_document(&uri, |doc| doc.as_str().to_string()) else {
+        let Some(content) = self
+            .adapter()
+            .get_document(&uri, |doc| doc.as_str().to_string())
+        else {
             return Ok(None);
         };
 
         let mut actions: Vec<CodeActionOrCommand> = Vec::new();
         for diag in &params.context.diagnostics {
-            let Some(NumberOrString::String(code)) = &diag.code else { continue };
+            let Some(NumberOrString::String(code)) = &diag.code else {
+                continue;
+            };
             match code.as_str() {
                 "CCC-JSON-001" => {
-                    if let Some(replacement) = crate::quickfix::deprecated_key_replacement(&diag.message) {
+                    if let Some(replacement) =
+                        crate::quickfix::deprecated_key_replacement(&diag.message)
+                    {
                         actions.push(replace_action(
                             &uri,
                             diag,
@@ -383,7 +472,8 @@ impl LanguageServer for ClaudeCodeConfigBackend {
                     }
                 }
                 "CCC-JSON-002" => {
-                    if let Some(replacement) = crate::quickfix::hook_key_replacement(&diag.message) {
+                    if let Some(replacement) = crate::quickfix::hook_key_replacement(&diag.message)
+                    {
                         actions.push(replace_action(
                             &uri,
                             diag,
@@ -403,7 +493,9 @@ impl LanguageServer for ClaudeCodeConfigBackend {
                     ));
                 }
                 "CCC-JSON-007" => {
-                    if let Some(byte_offset) = crate::quickfix::first_object_member_insert_offset(&content) {
+                    if let Some(byte_offset) =
+                        crate::quickfix::first_object_member_insert_offset(&content)
+                    {
                         let pos = offset_to_position(&content, byte_offset);
                         actions.push(replace_action(
                             &uri,
@@ -442,6 +534,73 @@ impl LanguageServer for ClaudeCodeConfigBackend {
         Ok(lsp_max::max_protocol::lsp_3_18::TextDocumentContentResult { text })
     }
 
+    /// `textDocument/documentSymbol` — hierarchical heading outline for
+    /// markdown config surfaces (CLAUDE.md / SKILL.md / agents/*.md only;
+    /// `None` for every other family, including unknown `.md` like README).
+    async fn document_symbol(
+        &self,
+        params: DocumentSymbolParams,
+    ) -> lsp_max::jsonrpc::Result<Option<DocumentSymbolResponse>> {
+        let uri = params.text_document.uri.clone();
+        self.emit_ocel_event("DocumentSymbolRequested", uri.as_str());
+        let Some(content) = self
+            .adapter()
+            .get_document(&uri, |doc| doc.as_str().to_string())
+        else {
+            return Ok(None);
+        };
+        if !is_markdown_config_doc(uri.as_str()) {
+            return Ok(None);
+        }
+        Ok(Some(DocumentSymbolResponse::from(
+            crate::analyzers::markdown_nav::document_symbols(&content),
+        )))
+    }
+
+    /// `textDocument/foldingRange` — one `Region` fold per heading section.
+    async fn folding_range(
+        &self,
+        params: FoldingRangeParams,
+    ) -> lsp_max::jsonrpc::Result<Option<Vec<FoldingRange>>> {
+        let uri = params.text_document.uri.clone();
+        self.emit_ocel_event("FoldingRangeRequested", uri.as_str());
+        let Some(content) = self
+            .adapter()
+            .get_document(&uri, |doc| doc.as_str().to_string())
+        else {
+            return Ok(None);
+        };
+        if !is_markdown_config_doc(uri.as_str()) {
+            return Ok(None);
+        }
+        Ok(Some(crate::analyzers::markdown_nav::folding_ranges(
+            &content,
+        )))
+    }
+
+    /// `textDocument/documentLink` — relative-path tokens resolved against
+    /// the document's own directory into `file://` targets.
+    async fn document_link(
+        &self,
+        params: DocumentLinkParams,
+    ) -> lsp_max::jsonrpc::Result<Option<Vec<DocumentLink>>> {
+        let uri = params.text_document.uri.clone();
+        self.emit_ocel_event("DocumentLinkRequested", uri.as_str());
+        let Some(content) = self
+            .adapter()
+            .get_document(&uri, |doc| doc.as_str().to_string())
+        else {
+            return Ok(None);
+        };
+        if !is_markdown_config_doc(uri.as_str()) {
+            return Ok(None);
+        }
+        let doc_dir = doc_dir_from_uri(uri.as_str());
+        Ok(Some(crate::analyzers::markdown_nav::document_links(
+            &content, &doc_dir,
+        )))
+    }
+
     /// `workspace/executeCommand`. Previously gated behind `#[cfg(feature =
     /// "praxis")]` — a feature never declared in `Cargo.toml`, whose body
     /// referenced `praxis::{AdmittedReceipt, Evidence}` (not a dependency)
@@ -453,26 +612,374 @@ impl LanguageServer for ClaudeCodeConfigBackend {
     /// directly (no cryptographic receipt signing — that required the
     /// nonexistent `praxis` dependency; re-add signing only once a real
     /// `praxis` crate is actually vendored).
-    async fn execute_command(&self, params: ExecuteCommandParams) -> lsp_max::jsonrpc::Result<Option<serde_json::Value>> {
+    async fn execute_command(
+        &self,
+        params: ExecuteCommandParams,
+    ) -> lsp_max::jsonrpc::Result<Option<serde_json::Value>> {
         self.emit_ocel_event("ExecuteCommand", &params.command);
 
         match params.command.as_str() {
             "claude-code-config/conformanceAudit" => {
                 let conformance = crate::conformance::conformance_vector();
                 self.emit_ocel_event("ConformanceAudit", "conformance_vector_returned");
-                Ok(Some(serde_json::to_value(conformance).unwrap_or(serde_json::Value::Null)))
+                Ok(Some(
+                    serde_json::to_value(conformance).unwrap_or(serde_json::Value::Null),
+                ))
             }
             #[cfg(feature = "cargo-cicd")]
-            "claude-code-config/cicdStatus" => {
-                Ok(Some(self.handle_cicd_status_command()))
-            }
+            "claude-code-config/cicdStatus" => Ok(Some(self.handle_cicd_status_command())),
             _ => {
                 self.client
-                    .log_message(MessageType::WARNING, &format!("Unknown command: {}", params.command))
+                    .log_message(
+                        MessageType::WARNING,
+                        &format!("Unknown command: {}", params.command),
+                    )
                     .await;
                 Ok(None)
             }
         }
+    }
+
+    // -------------------------------------------------------------------
+    // Phase-1 provider wiring (P12 lane): every handler below is a thin
+    // delegation into `crate::provider_registry`. see
+    // docs/jira/v26.11.3/receipts/p12-wiring.md for the mapping table.
+    // -------------------------------------------------------------------
+
+    async fn goto_definition(
+        &self,
+        params: GotoDefinitionParams,
+    ) -> lsp_max::jsonrpc::Result<Option<GotoDefinitionResponse>> {
+        let uri = params
+            .text_document_position_params
+            .text_document
+            .uri
+            .clone();
+        let position = params.text_document_position_params.position;
+        self.emit_ocel_event("DefinitionRequested", uri.as_str());
+        let out = self.adapter().get_document(&uri, |doc| {
+            crate::provider_registry::goto_definition(
+                uri.as_str(),
+                doc.as_str(),
+                position,
+                &self.provider_roots(),
+            )
+        });
+        Ok(out.flatten().map(GotoDefinitionResponse::Scalar))
+    }
+
+    async fn references(
+        &self,
+        params: ReferenceParams,
+    ) -> lsp_max::jsonrpc::Result<Option<Vec<Location>>> {
+        let uri = params.text_document_position.text_document.uri.clone();
+        let position = params.text_document_position.position;
+        self.emit_ocel_event("ReferencesRequested", uri.as_str());
+        let out = self.adapter().get_document(&uri, |doc| {
+            let roots = self.provider_roots();
+            let corpus = self.provider_corpus();
+            let docs: Vec<(String, String)> = corpus
+                .into_iter()
+                .map(|(p, t)| (format!("file://{}", p.display()), t))
+                .collect();
+            crate::provider_registry::references(doc.as_str(), position, &docs, &roots)
+        });
+        Ok(Some(out.unwrap_or_default()))
+    }
+
+    async fn document_highlight(
+        &self,
+        params: DocumentHighlightParams,
+    ) -> lsp_max::jsonrpc::Result<Option<Vec<DocumentHighlight>>> {
+        let uri = params
+            .text_document_position_params
+            .text_document
+            .uri
+            .clone();
+        let position = params.text_document_position_params.position;
+        self.emit_ocel_event("HighlightRequested", uri.as_str());
+        let out = self.adapter().get_document(&uri, |doc| {
+            crate::provider_registry::document_highlight(
+                uri.as_str(),
+                doc.as_str(),
+                position,
+                &self.provider_roots(),
+            )
+        });
+        Ok(Some(out.unwrap_or_default()))
+    }
+
+    async fn prepare_rename(
+        &self,
+        params: TextDocumentPositionParams,
+    ) -> lsp_max::jsonrpc::Result<Option<PrepareRenameResponse>> {
+        let uri = params.text_document.uri.clone();
+        let position = params.position;
+        self.emit_ocel_event("PrepareRenameRequested", uri.as_str());
+        let out = self.adapter().get_document(&uri, |doc| {
+            crate::provider_registry::prepare_rename_response(doc.as_str(), position)
+        });
+        Ok(out.flatten())
+    }
+
+    async fn rename(
+        &self,
+        params: RenameParams,
+    ) -> lsp_max::jsonrpc::Result<Option<WorkspaceEdit>> {
+        let uri = params.text_document_position.text_document.uri.clone();
+        let position = params.text_document_position.position;
+        self.emit_ocel_event("RenameRequested", uri.as_str());
+        let new_name = params.new_name.clone();
+        let out = self.adapter().get_document(&uri, |doc| {
+            crate::provider_registry::rename(doc.as_str(), position, &new_name, &uri)
+        });
+        Ok(out.flatten())
+    }
+
+    async fn prepare_call_hierarchy(
+        &self,
+        params: CallHierarchyPrepareParams,
+    ) -> lsp_max::jsonrpc::Result<Option<Vec<CallHierarchyItem>>> {
+        let uri = params
+            .text_document_position_params
+            .text_document
+            .uri
+            .clone();
+        let position = params.text_document_position_params.position;
+        self.emit_ocel_event("CallHierarchyPrepareRequested", uri.as_str());
+        let out = self.adapter().get_document(&uri, |_doc| {
+            let corpus = self.provider_corpus();
+            let doc_path = std::path::PathBuf::from(
+                uri.as_str().strip_prefix("file://").unwrap_or(uri.as_str()),
+            );
+            crate::provider_registry::prepare_call_hierarchy(&corpus, &doc_path, position)
+                .map(|item| vec![item])
+        });
+        Ok(out.flatten())
+    }
+
+    async fn incoming_calls(
+        &self,
+        params: CallHierarchyIncomingCallsParams,
+    ) -> lsp_max::jsonrpc::Result<Option<Vec<CallHierarchyIncomingCall>>> {
+        let item = params.item.clone();
+        let corpus = self.provider_corpus();
+        let calls = crate::provider_registry::incoming_calls(&corpus, &item.name);
+        Ok(Some(calls))
+    }
+
+    async fn outgoing_calls(
+        &self,
+        params: CallHierarchyOutgoingCallsParams,
+    ) -> lsp_max::jsonrpc::Result<Option<Vec<CallHierarchyOutgoingCall>>> {
+        let item = params.item.clone();
+        let doc_path = std::path::PathBuf::from(
+            item.uri
+                .as_str()
+                .strip_prefix("file://")
+                .unwrap_or(item.uri.as_str()),
+        );
+        let corpus = self.provider_corpus();
+        let calls = crate::provider_registry::outgoing_calls(&corpus, &doc_path);
+        Ok(Some(calls))
+    }
+
+    async fn moniker(
+        &self,
+        params: MonikerParams,
+    ) -> lsp_max::jsonrpc::Result<Option<Vec<Moniker>>> {
+        let uri = params
+            .text_document_position_params
+            .text_document
+            .uri
+            .clone();
+        let position = params.text_document_position_params.position;
+        self.emit_ocel_event("MonikerRequested", uri.as_str());
+        let home_dir = self.home_dir.clone();
+        let out = self.adapter().get_document(&uri, |doc| {
+            crate::provider_registry::moniker(
+                doc.as_str(),
+                uri.as_str(),
+                position,
+                home_dir.as_deref(),
+                None,
+            )
+        });
+        Ok(out.flatten().map(|(m, _range)| {
+            vec![Moniker {
+                scheme: "claude-config".to_string(),
+                identifier: m,
+                unique: UniquenessLevel::Document,
+                kind: None,
+            }]
+        }))
+    }
+
+    async fn symbol(
+        &self,
+        params: WorkspaceSymbolParams,
+    ) -> lsp_max::jsonrpc::Result<Option<Vec<SymbolInformation>>> {
+        self.emit_ocel_event("WorkspaceSymbolRequested", &params.query);
+        let roots = self.provider_roots();
+        let root = roots
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+        let symbols = crate::provider_registry::workspace_symbols(&root, &params.query);
+        Ok(Some(symbols))
+    }
+
+    async fn code_lens(
+        &self,
+        params: CodeLensParams,
+    ) -> lsp_max::jsonrpc::Result<Option<Vec<CodeLens>>> {
+        let uri = params.text_document.uri.clone();
+        self.emit_ocel_event("CodeLensRequested", uri.as_str());
+        let out = self.adapter().get_document(&uri, |doc| {
+            let corpus = self.provider_corpus();
+            let texts: Vec<String> = corpus.into_iter().map(|(_p, t)| t).collect();
+            crate::provider_registry::code_lens(uri.as_str(), doc.as_str(), &texts)
+        });
+        Ok(out.map(Some).unwrap_or(Some(vec![])))
+    }
+
+    async fn inlay_hint(
+        &self,
+        params: InlayHintParams,
+    ) -> lsp_max::jsonrpc::Result<Option<Vec<InlayHint>>> {
+        let uri = params.text_document.uri.clone();
+        self.emit_ocel_event("InlayHintRequested", uri.as_str());
+        let out = self.adapter().get_document(&uri, |doc| {
+            Some(crate::provider_registry::inlay_hints(
+                doc.as_str(),
+                params.range,
+                &uri,
+            ))
+        });
+        Ok(out.flatten())
+    }
+
+    async fn signature_help(
+        &self,
+        params: SignatureHelpParams,
+    ) -> lsp_max::jsonrpc::Result<Option<SignatureHelp>> {
+        let uri = params
+            .text_document_position_params
+            .text_document
+            .uri
+            .clone();
+        let position = params.text_document_position_params.position;
+        self.emit_ocel_event("SignatureHelpRequested", uri.as_str());
+        let out = self.adapter().get_document(&uri, |doc| {
+            crate::provider_registry::signature_help(doc.as_str(), position)
+        });
+        Ok(out.flatten())
+    }
+
+    async fn selection_range(
+        &self,
+        params: SelectionRangeParams,
+    ) -> lsp_max::jsonrpc::Result<Option<Vec<SelectionRange>>> {
+        let uri = params.text_document.uri.clone();
+        self.emit_ocel_event("SelectionRangeRequested", uri.as_str());
+        let out = self.adapter().get_document(&uri, |doc| {
+            params
+                .positions
+                .iter()
+                .filter_map(|pos| {
+                    crate::provider_registry::selection_range(doc.as_str(), *pos, uri.as_str())
+                })
+                .collect::<Vec<_>>()
+        });
+        Ok(Some(out.unwrap_or_default()))
+    }
+
+    async fn formatting(
+        &self,
+        params: DocumentFormattingParams,
+    ) -> lsp_max::jsonrpc::Result<Option<Vec<TextEdit>>> {
+        let uri = params.text_document.uri.clone();
+        self.emit_ocel_event("FormattingRequested", uri.as_str());
+        let out = self.adapter().get_document(&uri, |doc| {
+            crate::provider_registry::format_document_full(doc.as_str())
+        });
+        Ok(out.flatten())
+    }
+
+    async fn range_formatting(
+        &self,
+        params: DocumentRangeFormattingParams,
+    ) -> lsp_max::jsonrpc::Result<Option<Vec<TextEdit>>> {
+        let uri = params.text_document.uri.clone();
+        self.emit_ocel_event("RangeFormattingRequested", uri.as_str());
+        let out = self.adapter().get_document(&uri, |doc| {
+            crate::provider_registry::range_formatting(doc.as_str(), params.range, &params.options)
+        });
+        Ok(out.flatten())
+    }
+
+    async fn on_type_formatting(
+        &self,
+        params: DocumentOnTypeFormattingParams,
+    ) -> lsp_max::jsonrpc::Result<Option<Vec<TextEdit>>> {
+        let uri = params.text_document_position.text_document.uri.clone();
+        let position = params.text_document_position.position;
+        let trigger = params.ch.chars().next().unwrap_or(' ');
+        self.emit_ocel_event("OnTypeFormattingRequested", uri.as_str());
+        let out = self.adapter().get_document(&uri, |doc| {
+            crate::provider_registry::on_type_formatting(doc.as_str(), position, trigger)
+        });
+        Ok(out.flatten())
+    }
+
+    async fn document_color(
+        &self,
+        params: DocumentColorParams,
+    ) -> lsp_max::jsonrpc::Result<Vec<ColorInformation>> {
+        let uri = params.text_document.uri.clone();
+        self.emit_ocel_event("DocumentColorRequested", uri.as_str());
+        let out = self.adapter().get_document(&uri, |doc| {
+            crate::provider_registry::document_color(doc.as_str())
+        });
+        Ok(out.unwrap_or_default())
+    }
+
+    async fn color_presentation(
+        &self,
+        params: ColorPresentationParams,
+    ) -> lsp_max::jsonrpc::Result<Vec<ColorPresentation>> {
+        let uri = params.text_document.uri.clone();
+        self.emit_ocel_event("ColorPresentationRequested", uri.as_str());
+        let out = self.adapter().get_document(&uri, |doc| {
+            crate::provider_registry::color_presentation(doc.as_str(), &params.color, &params.range)
+        });
+        Ok(out.unwrap_or_default())
+    }
+
+    async fn semantic_tokens_full_delta(
+        &self,
+        params: SemanticTokensDeltaParams,
+    ) -> lsp_max::jsonrpc::Result<Option<SemanticTokensFullDeltaResult>> {
+        let uri = &params.text_document.uri;
+        self.emit_ocel_event("SemanticTokensDeltaRequested", uri.as_str());
+        let tokens = self.adapter().get_document(uri, |doc| {
+            let local_doc = crate::semantic_tokens::Document::new(
+                doc.as_str().to_string(),
+                doc.tree.clone(),
+                None,
+            );
+            crate::semantic_tokens::build_tokens(&local_doc)
+        });
+        // No per-document token cache yet (stateless wiring): respond with a
+        // full recompute, which is a legal reply to a delta request. A true
+        // delta needs a `Mutex<HashMap<Uri, SemanticTokens>>` on the backend
+        // keyed by result_id — see receipt p12-wiring.md.
+        Ok(tokens.map(|t| {
+            SemanticTokensFullDeltaResult::Tokens(SemanticTokens {
+                result_id: None,
+                ..t
+            })
+        }))
     }
 }
 
@@ -523,6 +1030,36 @@ impl ClaudeCodeConfigBackend {
 
 // CANDIDATE: workspace/textDocumentContent
 
+// CANDIDATE: textDocument/documentSymbol, textDocument/foldingRange,
+// textDocument/documentLink
+
+/// Markdown config families that get outline/folding/link navigation:
+/// `skill`, `claude_md`, `agent` (all `.md` surfaces in scan.rs's classify).
+/// Everything else — including unknown `.md` like README.md — returns no
+/// navigation.
+fn is_markdown_config_doc(uri: &str) -> bool {
+    matches!(crate::scan::classify(uri), "skill" | "claude_md" | "agent")
+}
+
+/// Extract the on-disk directory of a `file://` document URI, minimally
+/// percent-decoded (`%20` -> space). Non-file URIs yield an empty string,
+/// which document_links treats as "no resolvable targets" (a relative token
+/// against "" produces a URI that cannot be a real path — links still parse,
+/// so callers wanting file-only links should keep the markdown-only gate).
+fn doc_dir_from_uri(uri: &str) -> String {
+    let Some(rest) = uri.strip_prefix("file://") else {
+        return String::new();
+    };
+    let dir = rest.rsplit('/').nth(1).map(|_| {
+        // Strip the last path component (the file name).
+        match rest.rfind('/') {
+            Some(idx) => &rest[..idx],
+            None => rest,
+        }
+    });
+    dir.unwrap_or("").replace("%20", " ")
+}
+
 #[cfg(test)]
 mod andon_diagnostic_tests {
     use super::*;
@@ -539,7 +1076,13 @@ mod andon_diagnostic_tests {
     /// verification described in docs/v26.7.3-PRD-ARD.md before shipping.
     #[test]
     fn findings_never_emit_error_severity_today() {
-        let (_max, diag) = make_finding_with_source("CCC-TEST-001", "test message", "json", "claude-code-config-lsp", Range::default());
+        let (_max, diag) = make_finding_with_source(
+            "CCC-TEST-001",
+            "test message",
+            "json",
+            "claude-code-config-lsp",
+            Range::default(),
+        );
         assert_ne!(
             diag.severity,
             Some(DiagnosticSeverity::ERROR),
@@ -574,7 +1117,11 @@ mod andon_diagnostic_tests {
         assert_eq!(range.end.line, 1);
         // "line1 " (6 chars) + surrogate pair (2 code units) + " " (1) = 9.
         assert_eq!(range.start.character, 9);
-        assert_ne!(range, Range::default(), "a non-zero span must not collapse to 0:0");
+        assert_ne!(
+            range,
+            Range::default(),
+            "a non-zero span must not collapse to 0:0"
+        );
     }
 
     #[test]
@@ -589,11 +1136,17 @@ mod andon_diagnostic_tests {
     // classification and enum validation entirely.
     #[test]
     fn settings_local_json_classifies_as_json() {
-        assert_eq!(crate::scan::classify("file:///proj/.claude/settings.local.json"), "json");
+        assert_eq!(
+            crate::scan::classify("file:///proj/.claude/settings.local.json"),
+            "json"
+        );
     }
 
     #[test]
     fn settings_json_still_classifies_as_json() {
-        assert_eq!(crate::scan::classify("file:///proj/.claude/settings.json"), "json");
+        assert_eq!(
+            crate::scan::classify("file:///proj/.claude/settings.json"),
+            "json"
+        );
     }
 }

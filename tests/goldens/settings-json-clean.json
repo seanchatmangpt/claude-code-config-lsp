@@ -1,0 +1,8 @@
+{
+  "editorMode": "vim",
+  "statusLine": {
+    "type": "command"
+  },
+  "model": "sonnet",
+  "hooks": {}
+}

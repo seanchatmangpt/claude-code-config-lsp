@@ -1,0 +1,43 @@
+# Multiplex manifest variant (R2 lane, tests/fixtures/multiplex/lsp-max.toml).
+# Schema-exact per the deployed lsp-max.toml header receipt (eight schema keys
+# per [[server]] entry: id, primary_extensions, secondary_extensions, priority,
+# andon_code_prefixes, command, args). Placeholders are rewritten by
+# tests/multiplex_real_lsps.rs with absolute binary paths at test time.
+# Children: config-lsp (diagnostics-only, .json/.md) + three FULL language
+# servers — rust-analyzer (.rs), gopls (.go), elixir-ls (.ex).
+
+[[server]]
+id = "claude-code-config-lsp"
+primary_extensions = [".json", ".md"]
+secondary_extensions = []
+priority = "diagnostics-only"
+andon_code_prefixes = ["CCC-"]
+command = "{{CONFIG_LSP_BIN}}"
+args = ["serve", "--stdio"]
+
+[[server]]
+id = "rust-analyzer"
+primary_extensions = [".rs"]
+secondary_extensions = []
+priority = "full"
+andon_code_prefixes = ["E0"]
+command = "{{RUST_ANALYZER_BIN}}"
+args = []
+
+[[server]]
+id = "gopls"
+primary_extensions = [".go"]
+secondary_extensions = []
+priority = "full"
+andon_code_prefixes = ["GO-"]
+command = "{{GOPLS_BIN}}"
+args = ["serve"]
+
+[[server]]
+id = "elixir-ls"
+primary_extensions = [".ex", ".exs"]
+secondary_extensions = []
+priority = "full"
+andon_code_prefixes = ["EX-"]
+command = "{{ELIXIR_LS_BIN}}"
+args = []

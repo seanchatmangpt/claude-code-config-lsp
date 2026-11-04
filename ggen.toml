@@ -13,7 +13,7 @@ imports = [
 
 [inference]
 rules = [
-    { name = "standard-normalization", construct = "CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }" }
+    { name = "standard-normalization", construct = "CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o } ORDER BY ?s ?p ?o" }
 ]
 
 [generation]
@@ -28,10 +28,10 @@ path     = "../lsp-max"
 
 [[generation.rules]]
 name        = "cargo"
-query       = { inline = "SELECT (\"claude-code-config-lsp\" AS ?name) (\"26.6.24\" AS ?version) WHERE {}" }
+query       = { inline = "SELECT (\"claude-code-config-lsp\" AS ?name) (\"26.6.24\" AS ?version) WHERE {} ORDER BY ?name" }
 template    = { pack = "lsp-max", output = "templates", file = "cargo.toml.tera" }
 output_file = "Cargo.toml"
-mode        = "Overwrite"
+mode        = "Create"
 
 # ─── Rule: lib ───────────────────────────────────────────────────────────────
 
@@ -40,16 +40,16 @@ name        = "lib"
 query       = { file = "sparql/modules.rq" }
 template    = { pack = "lsp-max", output = "templates", file = "lib.rs.tera" }
 output_file = "src/lib.rs"
-mode        = "Overwrite"
+mode        = "Create"
 
 # ─── Rule: main-rs ───────────────────────────────────────────────────────────
 
 [[generation.rules]]
 name        = "main-rs"
-query       = { inline = "SELECT (\"ClaudeCodeConfig\" AS ?server_name) (\"claude_code_config_lsp\" AS ?snake_name) WHERE {}" }
+query       = { inline = "SELECT (\"ClaudeCodeConfig\" AS ?server_name) (\"claude_code_config_lsp\" AS ?snake_name) WHERE {} ORDER BY ?server_name" }
 template    = { pack = "lsp-max", output = "templates", file = "main.rs.tera" }
 output_file = "src/main.rs"
-mode        = "Overwrite"
+mode        = "Create"
 
 # ─── Rule: backend ───────────────────────────────────────────────────────────
 
@@ -58,7 +58,7 @@ name        = "backend"
 query       = { file = "sparql/handlers.rq" }
 template    = { pack = "lsp-max", output = "templates", file = "backend.rs.tera" }
 output_file = "src/backend.rs"
-mode        = "Overwrite"
+mode        = "Create"
 skip_empty  = false
 
 # ─── Rule: capabilities ──────────────────────────────────────────────────────
@@ -68,7 +68,7 @@ name        = "capabilities"
 query       = { pack = "lsp-max", output = "queries", file = "capabilities.sparql" }
 template    = { pack = "lsp-max", output = "templates", file = "capabilities.rs.tera" }
 output_file = "src/capabilities.rs"
-mode        = "Overwrite"
+mode        = "Create"
 skip_empty  = true
 
 # ─── Rule: conformance ───────────────────────────────────────────────────────
@@ -78,7 +78,7 @@ name        = "conformance"
 query       = { pack = "lsp-max", output = "queries", file = "conformance.sparql" }
 template    = { pack = "lsp-max", output = "templates", file = "conformance_vector.rs.tera" }
 output_file = "src/conformance.rs"
-mode        = "Overwrite"
+mode        = "Create"
 skip_empty  = true
 
 # ─── Rule: file-types ────────────────────────────────────────────────────────
@@ -97,7 +97,7 @@ name        = "hover"
 query       = { file = "sparql/hover.rq" }
 template    = { pack = "lsp-max", output = "templates", file = "hover.rs.tera" }
 output_file = "src/hover.rs"
-mode        = "Overwrite"
+mode        = "Create"
 
 # ─── Rule: completion ────────────────────────────────────────────────────────
 
@@ -106,7 +106,7 @@ name        = "completion"
 query       = { file = "sparql/completion.rq" }
 template    = { pack = "lsp-max", output = "templates", file = "completion.rs.tera" }
 output_file = "src/completion.rs"
-mode        = "Overwrite"
+mode        = "Create"
 
 # ─── Rule: semantic-tokens ───────────────────────────────────────────────────
 
@@ -115,7 +115,7 @@ name        = "semantic-tokens"
 query       = { file = "sparql/semantic_tokens.rq" }
 template    = { pack = "lsp-max", output = "templates", file = "semantic_tokens.rs.tera" }
 output_file = "src/semantic_tokens.rs"
-mode        = "Overwrite"
+mode        = "Create"
 
 # ─── Rule: schema ────────────────────────────────────────────────────────────
 
@@ -124,7 +124,7 @@ name        = "schema"
 query       = { file = "sparql/schema_fields.rq" }
 template    = { pack = "lsp-max", output = "templates", file = "schema_module.rs.tera" }
 output_file = "src/schema.rs"
-mode        = "Overwrite"
+mode        = "Create"
 
 # ─── Rule: declare-model ─────────────────────────────────────────────────────
 
@@ -142,13 +142,13 @@ name        = "virtual-docs"
 query       = { file = "sparql/virtual_docs.rq" }
 template    = { pack = "lsp-max", output = "templates", file = "virtual_doc.rs.tera" }
 output_file = "src/virtual_docs.rs"
-mode        = "Overwrite"
+mode        = "Create"
 
 # ─── Rule: ocel-accumulator ──────────────────────────────────────────────────
 
 [[generation.rules]]
 name        = "ocel-accumulator"
-query       = { inline = "SELECT (\"ClaudeCodeConfig\" AS ?server_name) WHERE {}" }
+query       = { inline = "SELECT (\"ClaudeCodeConfig\" AS ?server_name) WHERE {} ORDER BY ?server_name" }
 template    = { pack = "lsp-max", output = "templates", file = "ocel_accumulator.rs.tera" }
 output_file = "src/ocel_accumulator.rs"
 mode        = "Overwrite"
@@ -160,7 +160,7 @@ name        = "analyzers-mod"
 query       = { file = "sparql/config_surfaces.rq" }
 template    = { pack = "lsp-max", output = "templates", file = "analyzers_mod.rs.tera" }
 output_file = "src/analyzers/mod.rs"
-mode        = "Overwrite"
+mode        = "Create"
 
 # ─── Rules: analyzers (one per config surface, dynamic output) ───────────────
 

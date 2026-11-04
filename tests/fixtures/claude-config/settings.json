@@ -1,0 +1,230 @@
+{
+  "env": {
+    "PATH": "/Users/sac/.m2/mvnd/bin:/Users/sac/.sdkman/candidates/mvnd/current/bin:/Users/sac/.sdkman/candidates/maven/current/bin:/Users/sac/.sdkman/candidates/java/current/bin:/Users/sac/.local/bin:/Users/sac/.erlmcp/otp-28.3.1/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/pmk/env/global/bin:/Library/Apple/usr/bin:/Library/TeX/texbin:/Applications/VMware Fusion.app/Contents/Public:/usr/local/go/bin:/Users/sac/.cargo/bin",
+    "ENABLE_TOOL_SEARCH": "false",
+    "ANTHROPIC_AUTH_TOKEN": "<REDACTED-TOKEN>",
+    "ANTHROPIC_BASE_URL": "https://api.z.ai/api/anthropic",
+    "API_TIMEOUT_MS": "3000000",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "glm-5.3-flash[1m]",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "glm-5.3-flash[1m]",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "glm-5.3-flash[1m]",
+    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "1048576"
+  },
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  },
+  "permissions": {
+    "allow": [
+      "Bash(npm run lint)",
+      "Bash(npm run test:*)",
+      "Bash(npm test:*)",
+      "Bash(git status)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push)",
+      "Bash(git config:*)",
+      "Bash(git tag:*)",
+      "Bash(git branch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git stash:*)",
+      "Bash(jq:*)",
+      "Bash(node:*)",
+      "Bash(which:*)",
+      "Bash(pwd)",
+      "Bash(ls:*)",
+      "Bash(uv run pytest:*)",
+      "Bash(tree:*)",
+      "Bash(find:*)",
+      "Bash(done)",
+      "Bash(sort:*)",
+      "Bash(xargs:*)",
+      "Bash(python3:*)",
+      "Bash(uv run ruff check:*)",
+      "Bash(git -C /Users/sac/dev/kgcl log:*)",
+      "Bash(uv run mypy:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(uv pip install:*)",
+      "Bash(pip install pyoxigraph)",
+      "Bash(uv run python:*)",
+      "Bash(rm -rf /Users/sac/smalt/popcorn_demo/_build-*)",
+      "Bash(rm -rf /tmp/fd-r3*)",
+      "Bash(rm -rf /tmp/w1*)",
+      "Bash(rm -rf /tmp/k6_*)",
+      "Bash(rm -rf /tmp/eh_*)",
+      "Bash(rm -rf /tmp/kd*)",
+      "Bash(rm -rf /tmp/s1*)",
+      "Bash(rm -rf /tmp/s13*)",
+      "Bash(rm -rf /tmp/s14*)",
+      "Bash(rm -rf /tmp/s17*)",
+      "Bash(rm -rf /tmp/s18*)",
+      "Bash(rm -rf /tmp/w13*)",
+      "Bash(rm -rf /tmp/w14*)",
+      "Bash(rm -rf /tmp/corrupt_chromium*)",
+      "Bash(rm -f /tmp/egress_flip_*)",
+      "Bash(rm -f /tmp/egress_ramp.*)",
+      "Bash(rm -f /tmp/egress_sample.*)"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(rm -rf /*)",
+      "Bash(rm -rf ~)",
+      "Bash(rm -rf ~/*)",
+      "Bash(rm -rf .)",
+      "Bash(rm -rf ..)",
+      "Bash(sudo rm -rf:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(dd if=/dev/zero:*)",
+      "Bash(dd if=/dev/random:*)",
+      "Bash(mkfs.*:*)",
+      "Bash(chmod -R 777 /)",
+      "Bash(chown -R:*)"
+    ],
+    "defaultMode": "bypassPermissions"
+  },
+  "model": "opus",
+  "enabledMcpjsonServers": [
+    "open-ontologies"
+  ],
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/dfcm/doctrine_hook.sh",
+            "timeout": 60,
+            "statusMessage": "Re-projecting doctrine"
+          }
+        ]
+      },
+      {
+        "matcher": "Workflow",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/dfcm/workflow_handoff_hook.py",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|EnterWorktree|Agent|Workflow|Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/dfcm/topology_guard.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "~/.claude/statusline-command.sh"
+  },
+  "enabledPlugins": {
+    "rust-analyzer-lsp@claude-plugins-official": true,
+    "jdtls-lsp@claude-plugins-official": false,
+    "frontend-design@claude-plugins-official": false,
+    "superpowers@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true,
+    "ralph-loop@claude-plugins-official": false,
+    "pyright-lsp@claude-plugins-official": true,
+    "typescript-lsp@claude-plugins-official": true,
+    "explanatory-output-style@claude-plugins-official": false,
+    "ggen-lsp@ggen": true,
+    "wasm4pm-lsp@wasm4pm": true,
+    "anti-llm-cheat-lsp@wasm4pm": true,
+    "claude-code-config-lsp@claude-code-config-lsp": true,
+    "hookify@claude-plugins-official": true,
+    "lumen@claude-plugins-official": true,
+    "chatman-ecosystem@chatman-ecosystem": false,
+    "elixir-lsp@elixir-lsp": true
+  },
+  "extraKnownMarketplaces": {
+    "ggen": {
+      "source": {
+        "source": "directory",
+        "path": "/Users/sac/ggen"
+      }
+    },
+    "wasm4pm": {
+      "source": {
+        "source": "directory",
+        "path": "/Users/sac/wasm4pm"
+      }
+    },
+    "claude-code-config-lsp": {
+      "source": {
+        "source": "directory",
+        "path": "/Users/sac/claude-code-config-lsp"
+      }
+    },
+    "elixir-lsp": {
+      "source": {
+        "source": "directory",
+        "path": "/Users/sac/elixir-lsp"
+      }
+    },
+    "smalt-mods": {
+      "source": {
+        "source": "directory",
+        "path": "/Users/sac/smalt/mods"
+      }
+    }
+  },
+  "effortLevel": "low",
+  "modelSettings": {
+    "claude-opus-5-5": {
+      "effortLevel": "medium"
+    },
+    "glm-5.3-flash": {
+      "effortLevel": "low"
+    }
+  },
+  "askUserQuestionTimeout": "60s",
+  "tui": "fullscreen",
+  "voice": {
+    "enabled": true,
+    "mode": "hold"
+  },
+  "skipDangerousModePermissionPrompt": true,
+  "skipWorkflowUsageWarning": true,
+  "editorMode": "vim",
+  "verbose": false,
+  "crossSessionInbound": "accept",
+  "agentPushNotifEnabled": true,
+  "skipAutoPermissionPrompt": true,
+  "voiceEnabled": true,
+  "mcpServers": {
+    "open-ontologies": {
+      "command": "/Users/sac/open-ontologies/target/release/open-ontologies",
+      "args": [
+        "server",
+        "serve"
+      ]
+    },
+    "osx-clnr": {
+      "command": "/Users/sac/osx-clnr/target/release/oclnr-mcp",
+      "env": {
+        "OCLNR_WORKSPACE": "/Users/sac"
+      }
+    },
+    "bcinr": {
+      "command": "/Users/sac/bcinr/target/debug/bcinr-mcp"
+    },
+    "wasm4pm-planner": {
+      "command": "/Users/sac/wasm4pm/target/release/wasm4pm-planner-mcp"
+    }
+  }
+}

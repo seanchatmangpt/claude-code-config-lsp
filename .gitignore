@@ -3,3 +3,16 @@
 .DS_Store
 .mesh_state.json
 Cargo.lock
+
+# ggen runtime state (v26.11.3 wave): signing keys, sync receipts, freeze
+# slots — regenerated on demand, never source.
+.ggen/
+.ggen-v2/
+.ggen-freeze/
+# compositor/LSP runtime artifacts
+.claude/receipts/
+.claude/compositor-endpoint.json
+.claude/lsp-max-fitness.json
+dist/
+target-lane*/
+.claude/settings.local.json

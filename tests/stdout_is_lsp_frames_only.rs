@@ -47,6 +47,7 @@ fn stdout_begins_with_an_lsp_frame_header() {
     // Give the server time to emit the response (and any stray startup log).
     std::thread::sleep(Duration::from_secs(3));
     let _ = child.kill();
+    let _ = child.wait();
 
     let mut out = Vec::new();
     child

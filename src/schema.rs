@@ -33,81 +33,506 @@ pub fn build_schema() -> SchemaRegistry {
     let mut types: HashMap<String, SchemaNode> = HashMap::new();
 
     {
-        let agent = types.entry("Agent definition (.claude/agents/*.md)".to_string()).or_insert_with(|| SchemaNode {
-            name: "Agent definition (.claude/agents/*.md)".to_string(),
-            fields: Vec::new(),
-            law_status: "CANDIDATE".to_string(),
-        });
-        agent.fields.push(("name".to_string(), FieldType { name: "string".to_string(), is_optional: false, stability: "stable".to_string() }));
-        agent.fields.push(("description".to_string(), FieldType { name: "string".to_string(), is_optional: false, stability: "stable".to_string() }));
-        agent.fields.push(("model".to_string(), FieldType { name: "enum: opus | sonnet | haiku | inherit".to_string(), is_optional: true, stability: "stable".to_string() }));
-        agent.fields.push(("tools".to_string(), FieldType { name: "array[string]".to_string(), is_optional: true, stability: "stable".to_string() }));
-        agent.fields.push(("maxTurns".to_string(), FieldType { name: "integer".to_string(), is_optional: true, stability: "stable".to_string() }));
-        agent.fields.push(("mcpServers".to_string(), FieldType { name: "object".to_string(), is_optional: true, stability: "stable".to_string() }));
+        let agent = types
+            .entry("Agent definition (.claude/agents/*.md)".to_string())
+            .or_insert_with(|| SchemaNode {
+                name: "Agent definition (.claude/agents/*.md)".to_string(),
+                fields: Vec::new(),
+                law_status: "CANDIDATE".to_string(),
+            });
+        agent.fields.push((
+            "name".to_string(),
+            FieldType {
+                name: "string".to_string(),
+                is_optional: false,
+                stability: "stable".to_string(),
+            },
+        ));
+        agent.fields.push((
+            "description".to_string(),
+            FieldType {
+                name: "string".to_string(),
+                is_optional: false,
+                stability: "stable".to_string(),
+            },
+        ));
+        agent.fields.push((
+            "model".to_string(),
+            FieldType {
+                name: "enum: opus | sonnet | haiku | inherit".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        agent.fields.push((
+            "tools".to_string(),
+            FieldType {
+                name: "array[string]".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        agent.fields.push((
+            "maxTurns".to_string(),
+            FieldType {
+                name: "integer".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        agent.fields.push((
+            "mcpServers".to_string(),
+            FieldType {
+                name: "object".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
     }
 
     {
-        let settings = types.entry("Claude Code settings.json".to_string()).or_insert_with(|| SchemaNode {
-            name: "Claude Code settings.json".to_string(),
-            fields: Vec::new(),
-            law_status: "CANDIDATE".to_string(),
-        });
+        let settings = types
+            .entry("Claude Code settings.json".to_string())
+            .or_insert_with(|| SchemaNode {
+                name: "Claude Code settings.json".to_string(),
+                fields: Vec::new(),
+                law_status: "CANDIDATE".to_string(),
+            });
         settings.fields.push(("model".to_string(), FieldType { name: "enum: opus | sonnet | haiku | fable | claude-opus-5 | claude-sonnet-5 | claude-fable-5 | claude-haiku-4-5-20251001".to_string(), is_optional: true, stability: "stable".to_string() }));
-        settings.fields.push(("effortLevel".to_string(), FieldType { name: "enum: low | medium | high | xhigh | max".to_string(), is_optional: true, stability: "stable".to_string() }));
-        settings.fields.push(("permissions".to_string(), FieldType { name: "object".to_string(), is_optional: true, stability: "stable".to_string() }));
-        settings.fields.push(("hooks".to_string(), FieldType { name: "object[hookEvent → array]".to_string(), is_optional: true, stability: "stable".to_string() }));
-        settings.fields.push(("mcpServers".to_string(), FieldType { name: "object[id → {command, args}]".to_string(), is_optional: true, stability: "stable".to_string() }));
-        settings.fields.push(("env".to_string(), FieldType { name: "object[string → string]".to_string(), is_optional: true, stability: "stable".to_string() }));
-        settings.fields.push(("enabledPlugins".to_string(), FieldType { name: "object[id → boolean]".to_string(), is_optional: true, stability: "stable".to_string() }));
-        settings.fields.push(("statusLine".to_string(), FieldType { name: "object".to_string(), is_optional: true, stability: "stable".to_string() }));
-        settings.fields.push(("tui".to_string(), FieldType { name: "enum: fullscreen".to_string(), is_optional: true, stability: "experimental".to_string() }));
+        settings.fields.push((
+            "effortLevel".to_string(),
+            FieldType {
+                name: "enum: low | medium | high | xhigh | max".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        settings.fields.push((
+            "permissions".to_string(),
+            FieldType {
+                name: "object".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        settings.fields.push((
+            "hooks".to_string(),
+            FieldType {
+                name: "object[hookEvent → array]".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        settings.fields.push((
+            "mcpServers".to_string(),
+            FieldType {
+                name: "object[id → {command, args}]".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        settings.fields.push((
+            "env".to_string(),
+            FieldType {
+                name: "object[string → string]".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        settings.fields.push((
+            "enabledPlugins".to_string(),
+            FieldType {
+                name: "object[id → boolean]".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        settings.fields.push((
+            "statusLine".to_string(),
+            FieldType {
+                name: "object".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        settings.fields.push((
+            "tui".to_string(),
+            FieldType {
+                name: "enum: fullscreen".to_string(),
+                is_optional: true,
+                stability: "experimental".to_string(),
+            },
+        ));
+        // hand-extended 2026-11-03, pending FM-GEN-007
+        // evidence: /Users/sac/.claude/settings.json + settings.local.json (real corpus grammar)
+        settings.fields.push((
+            "env".to_string(),
+            FieldType {
+                name: "object[string → string]".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        settings.fields.push((
+            "attribution".to_string(),
+            FieldType {
+                name: "object{commit, pr}".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        settings.fields.push((
+            "permissions.allow".to_string(),
+            FieldType {
+                name: "array[string] (permission rules)".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        settings.fields.push((
+            "permissions.deny".to_string(),
+            FieldType {
+                name: "array[string] (permission rules)".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        settings.fields.push((
+            "permissions.defaultMode".to_string(),
+            FieldType {
+                name: "enum: default | acceptEdits | plan | bypassPermissions".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        settings.fields.push((
+            "enabledMcpjsonServers".to_string(),
+            FieldType {
+                name: "array[string]".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        settings.fields.push((
+            "disabledMcpjsonServers".to_string(),
+            FieldType {
+                name: "array[string]".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        settings.fields.push((
+            "hooks.matcher".to_string(),
+            FieldType {
+                name: "string (tool-name pattern)".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        settings.fields.push((
+            "hooks.hooks".to_string(),
+            FieldType {
+                name: "array[{type: command, command, timeout?, statusMessage?}]".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        settings.fields.push((
+            "hooks.type".to_string(),
+            FieldType {
+                name: "enum: command".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        settings.fields.push((
+            "hooks.timeout".to_string(),
+            FieldType {
+                name: "number (seconds)".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        settings.fields.push((
+            "hooks.statusMessage".to_string(),
+            FieldType {
+                name: "string".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        settings.fields.push((
+            "statusLine.type".to_string(),
+            FieldType {
+                name: "enum: command".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        settings.fields.push((
+            "statusLine.command".to_string(),
+            FieldType {
+                name: "string (shell command)".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        settings.fields.push((
+            "extraKnownMarketplaces".to_string(),
+            FieldType {
+                name: "object[name → {source: {source, path}}]".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        settings.fields.push((
+            "modelSettings".to_string(),
+            FieldType {
+                name: "object[model-id → settings]".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        settings.fields.push((
+            "askUserQuestionTimeout".to_string(),
+            FieldType {
+                name: "string (duration, e.g. \"60s\")".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        settings.fields.push((
+            "voice".to_string(),
+            FieldType {
+                name: "object{enabled: boolean, mode}".to_string(),
+                is_optional: true,
+                stability: "experimental".to_string(),
+            },
+        ));
+        settings.fields.push((
+            "voiceEnabled".to_string(),
+            FieldType {
+                name: "boolean".to_string(),
+                is_optional: true,
+                stability: "experimental".to_string(),
+            },
+        ));
+        settings.fields.push((
+            "skipDangerousModePermissionPrompt".to_string(),
+            FieldType {
+                name: "boolean".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        settings.fields.push((
+            "skipWorkflowUsageWarning".to_string(),
+            FieldType {
+                name: "boolean".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        settings.fields.push((
+            "skipAutoPermissionPrompt".to_string(),
+            FieldType {
+                name: "boolean".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        settings.fields.push((
+            "agentPushNotifEnabled".to_string(),
+            FieldType {
+                name: "boolean".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        settings.fields.push((
+            "editorMode".to_string(),
+            FieldType {
+                name: "enum: normal | vim".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        settings.fields.push((
+            "verbose".to_string(),
+            FieldType {
+                name: "boolean".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        settings.fields.push((
+            "crossSessionInbound".to_string(),
+            FieldType {
+                name: "enum: accept".to_string(),
+                is_optional: true,
+                stability: "experimental".to_string(),
+            },
+        ));
     }
 
     {
-        let plugin = types.entry("Plugin manifest (plugin.json)".to_string()).or_insert_with(|| SchemaNode {
-            name: "Plugin manifest (plugin.json)".to_string(),
-            fields: Vec::new(),
-            law_status: "CANDIDATE".to_string(),
-        });
-        plugin.fields.push(("$schema".to_string(), FieldType { name: "string".to_string(), is_optional: false, stability: "stable".to_string() }));
-        plugin.fields.push(("name".to_string(), FieldType { name: "string".to_string(), is_optional: false, stability: "stable".to_string() }));
-        plugin.fields.push(("description".to_string(), FieldType { name: "string".to_string(), is_optional: true, stability: "stable".to_string() }));
-        plugin.fields.push(("version".to_string(), FieldType { name: "string".to_string(), is_optional: true, stability: "stable".to_string() }));
+        let plugin = types
+            .entry("Plugin manifest (plugin.json)".to_string())
+            .or_insert_with(|| SchemaNode {
+                name: "Plugin manifest (plugin.json)".to_string(),
+                fields: Vec::new(),
+                law_status: "CANDIDATE".to_string(),
+            });
+        plugin.fields.push((
+            "$schema".to_string(),
+            FieldType {
+                name: "string".to_string(),
+                is_optional: false,
+                stability: "stable".to_string(),
+            },
+        ));
+        plugin.fields.push((
+            "name".to_string(),
+            FieldType {
+                name: "string".to_string(),
+                is_optional: false,
+                stability: "stable".to_string(),
+            },
+        ));
+        plugin.fields.push((
+            "description".to_string(),
+            FieldType {
+                name: "string".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        plugin.fields.push((
+            "version".to_string(),
+            FieldType {
+                name: "string".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
     }
 
     {
-        let mcp = types.entry("MCP server config (mcp.json)".to_string()).or_insert_with(|| SchemaNode {
-            name: "MCP server config (mcp.json)".to_string(),
-            fields: Vec::new(),
-            law_status: "CANDIDATE".to_string(),
-        });
-        mcp.fields.push(("command".to_string(), FieldType { name: "string".to_string(), is_optional: false, stability: "stable".to_string() }));
-        mcp.fields.push(("args".to_string(), FieldType { name: "array[string]".to_string(), is_optional: true, stability: "stable".to_string() }));
-        mcp.fields.push(("env".to_string(), FieldType { name: "object[string → string]".to_string(), is_optional: true, stability: "stable".to_string() }));
-        mcp.fields.push(("type".to_string(), FieldType { name: "enum: stdio".to_string(), is_optional: true, stability: "stable".to_string() }));
+        let mcp = types
+            .entry("MCP server config (mcp.json)".to_string())
+            .or_insert_with(|| SchemaNode {
+                name: "MCP server config (mcp.json)".to_string(),
+                fields: Vec::new(),
+                law_status: "CANDIDATE".to_string(),
+            });
+        mcp.fields.push((
+            "command".to_string(),
+            FieldType {
+                name: "string".to_string(),
+                is_optional: false,
+                stability: "stable".to_string(),
+            },
+        ));
+        mcp.fields.push((
+            "args".to_string(),
+            FieldType {
+                name: "array[string]".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        mcp.fields.push((
+            "env".to_string(),
+            FieldType {
+                name: "object[string → string]".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        mcp.fields.push((
+            "type".to_string(),
+            FieldType {
+                name: "enum: stdio".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
     }
 
     {
-        let docs = types.entry("Project documentation (CLAUDE.md)".to_string()).or_insert_with(|| SchemaNode {
-            name: "Project documentation (CLAUDE.md)".to_string(),
-            fields: Vec::new(),
-            law_status: "CANDIDATE".to_string(),
-        });
-        docs.fields.push(("# Title".to_string(), FieldType { name: "markdown H1".to_string(), is_optional: false, stability: "stable".to_string() }));
-        docs.fields.push(("## Section".to_string(), FieldType { name: "markdown H2".to_string(), is_optional: true, stability: "stable".to_string() }));
+        let docs = types
+            .entry("Project documentation (CLAUDE.md)".to_string())
+            .or_insert_with(|| SchemaNode {
+                name: "Project documentation (CLAUDE.md)".to_string(),
+                fields: Vec::new(),
+                law_status: "CANDIDATE".to_string(),
+            });
+        docs.fields.push((
+            "# Title".to_string(),
+            FieldType {
+                name: "markdown H1".to_string(),
+                is_optional: false,
+                stability: "stable".to_string(),
+            },
+        ));
+        docs.fields.push((
+            "## Section".to_string(),
+            FieldType {
+                name: "markdown H2".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
     }
 
     {
-        let skill = types.entry("Skill definition (.claude/skills/*/SKILL.md)".to_string()).or_insert_with(|| SchemaNode {
-            name: "Skill definition (.claude/skills/*/SKILL.md)".to_string(),
-            fields: Vec::new(),
-            law_status: "CANDIDATE".to_string(),
-        });
-        skill.fields.push(("name".to_string(), FieldType { name: "string (lowercase, no reserved words)".to_string(), is_optional: false, stability: "stable".to_string() }));
-        skill.fields.push(("description".to_string(), FieldType { name: "string (max 1024 chars)".to_string(), is_optional: false, stability: "stable".to_string() }));
-        skill.fields.push(("tools".to_string(), FieldType { name: "array[string]".to_string(), is_optional: true, stability: "stable".to_string() }));
-        skill.fields.push(("user-invocable".to_string(), FieldType { name: "boolean".to_string(), is_optional: true, stability: "stable".to_string() }));
-        skill.fields.push(("mcpServers".to_string(), FieldType { name: "object".to_string(), is_optional: true, stability: "stable".to_string() }));
+        let skill = types
+            .entry("Skill definition (.claude/skills/*/SKILL.md)".to_string())
+            .or_insert_with(|| SchemaNode {
+                name: "Skill definition (.claude/skills/*/SKILL.md)".to_string(),
+                fields: Vec::new(),
+                law_status: "CANDIDATE".to_string(),
+            });
+        skill.fields.push((
+            "name".to_string(),
+            FieldType {
+                name: "string (lowercase, no reserved words)".to_string(),
+                is_optional: false,
+                stability: "stable".to_string(),
+            },
+        ));
+        skill.fields.push((
+            "description".to_string(),
+            FieldType {
+                name: "string (max 1024 chars)".to_string(),
+                is_optional: false,
+                stability: "stable".to_string(),
+            },
+        ));
+        skill.fields.push((
+            "tools".to_string(),
+            FieldType {
+                name: "array[string]".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        skill.fields.push((
+            "user-invocable".to_string(),
+            FieldType {
+                name: "boolean".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
+        skill.fields.push((
+            "mcpServers".to_string(),
+            FieldType {
+                name: "object".to_string(),
+                is_optional: true,
+                stability: "stable".to_string(),
+            },
+        ));
     }
 
     SchemaRegistry {
@@ -131,7 +556,10 @@ mod tests {
     #[test]
     fn agent_definition_has_model_field() {
         let schema = build_schema();
-        let agent = schema.types.get("Agent definition (.claude/agents/*.md)").unwrap();
+        let agent = schema
+            .types
+            .get("Agent definition (.claude/agents/*.md)")
+            .unwrap();
         assert!(agent.fields.iter().any(|(name, _)| name == "model"));
     }
 

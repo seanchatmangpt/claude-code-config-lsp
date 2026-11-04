@@ -387,6 +387,295 @@ ccc:plugin_schema
     ccc:fieldDescription "Must reference https://anthropic.com/claude-code/plugin.schema.json" .
 
 # ══════════════════════════════════════════════════════════════════════════════
+# SCHEMA FIELD EXPANSION (hand-extended 2026-11-03, pending FM-GEN-007)
+# Evidence source: /Users/sac/.claude/settings.json + settings.local.json
+# (real corpus grammar). FM-GEN-007 blocks real regeneration; these individuals
+# are hand-added to match, mirrored in src/schema.rs settings tables.
+# ═══════════════════════════════════════════════════════ ~/.claude/settings.json
+
+ccc:settings_env
+    a ccc:SchemaField ;
+    ccc:fieldName "env" ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "object" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldDescription "Environment variables applied to every session (string → string map). Witnessed: PATH, ENABLE_TOOL_SEARCH, ANTHROPIC_* keys, API_TIMEOUT_MS." .
+
+ccc:settings_attribution
+    a ccc:SchemaField ;
+    ccc:fieldName "attribution" ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "object" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldDescription "Commit/PR attribution text customization (commit, pr string members)." .
+
+ccc:settings_attribution_commit
+    a ccc:SchemaField ;
+    ccc:fieldName "commit" ;
+    ccc:fieldParent ccc:settings_attribution ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "string" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldDescription "Custom Co-Authored-By trailer text for commits." .
+
+ccc:settings_attribution_pr
+    a ccc:SchemaField ;
+    ccc:fieldName "pr" ;
+    ccc:fieldParent ccc:settings_attribution ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "string" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldDescription "Custom attribution text for PR descriptions." .
+
+ccc:settings_permissions_allow
+    a ccc:SchemaField ;
+    ccc:fieldName "allow" ;
+    ccc:fieldParent ccc:settings_permissions ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "array" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldDescription "Permission rule strings auto-allowed (e.g. Bash(git status:*), mcp tools)." .
+
+ccc:settings_permissions_deny
+    a ccc:SchemaField ;
+    ccc:fieldName "deny" ;
+    ccc:fieldParent ccc:settings_permissions ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "array" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldDescription "Permission rule strings denied outright." .
+
+ccc:settings_permissions_defaultMode
+    a ccc:SchemaField ;
+    ccc:fieldName "defaultMode" ;
+    ccc:fieldParent ccc:settings_permissions ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "enum" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldEnumValues "default acceptEdits plan bypassPermissions" ;
+    ccc:fieldDescription "Default permission mode. Witnessed value: bypassPermissions." .
+
+ccc:settings_enabledMcpjsonServers
+    a ccc:SchemaField ;
+    ccc:fieldName "enabledMcpjsonServers" ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "array" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldDescription "MCP servers from .mcp.json approved/enabled by user. Witnessed: [open-ontologies]." .
+
+ccc:settings_disabledMcpjsonServers
+    a ccc:SchemaField ;
+    ccc:fieldName "disabledMcpjsonServers" ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "array" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldDescription "MCP servers from .mcp.json disabled. Witnessed in settings.local.json: [oclnr]." .
+
+ccc:settings_hooks
+    a ccc:SchemaField ;
+    ccc:fieldName "hooks" ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "object" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldDescription "Hook event → array of {matcher, hooks[]} rules. Witnessed events: PreToolUse, PostToolUse." .
+
+ccc:settings_hooks_matcher
+    a ccc:SchemaField ;
+    ccc:fieldName "matcher" ;
+    ccc:fieldParent ccc:settings_hooks ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "string" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldDescription "Tool-name pattern the hook rule applies to (e.g. Bash|WebFetch)." .
+
+ccc:settings_hooks_hooks
+    a ccc:SchemaField ;
+    ccc:fieldName "hooks" ;
+    ccc:fieldParent ccc:settings_hooks ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "array" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldDescription "Hook command list: [{type, command, timeout?, statusMessage?}]." .
+
+ccc:settings_hooks_type
+    a ccc:SchemaField ;
+    ccc:fieldName "type" ;
+    ccc:fieldParent ccc:settings_hooks ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "enum" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldEnumValues "command" ;
+    ccc:fieldDescription "Hook type. Witnessed: command." .
+
+ccc:settings_hooks_timeout
+    a ccc:SchemaField ;
+    ccc:fieldName "timeout" ;
+    ccc:fieldParent ccc:settings_hooks ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "number" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldDescription "Hook command timeout in seconds." .
+
+ccc:settings_hooks_statusMessage
+    a ccc:SchemaField ;
+    ccc:fieldName "statusMessage" ;
+    ccc:fieldParent ccc:settings_hooks ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "string" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldDescription "Spinner text shown while the hook runs." .
+
+ccc:settings_statusLine
+    a ccc:SchemaField ;
+    ccc:fieldName "statusLine" ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "object" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldDescription "Status line config {type, command}. Witnessed: {type: command, command: ~/.claude/statusline-command.sh}." .
+
+ccc:settings_statusLine_type
+    a ccc:SchemaField ;
+    ccc:fieldName "type" ;
+    ccc:fieldParent ccc:settings_statusLine ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "enum" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldEnumValues "command" ;
+    ccc:fieldDescription "Status line generator type." .
+
+ccc:settings_statusLine_command
+    a ccc:SchemaField ;
+    ccc:fieldName "command" ;
+    ccc:fieldParent ccc:settings_statusLine ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "string" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldDescription "Shell command producing the status line text." .
+
+ccc:settings_enabledPlugins
+    a ccc:SchemaField ;
+    ccc:fieldName "enabledPlugins" ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "object" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldDescription "Enabled plugins map: id@marketplace → true. Witnessed: rust-analyzer-lsp@claude-plugins-official, ggen-lsp@ggen, etc." .
+
+ccc:settings_extraKnownMarketplaces
+    a ccc:SchemaField ;
+    ccc:fieldName "extraKnownMarketplaces" ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "object" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldDescription "Additional plugin marketplaces: name → {source: {source, path}}. Witnessed: ggen, wasm4pm, claude-code-config-lsp, elixir-lsp, smalt-mods." .
+
+ccc:settings_modelSettings
+    a ccc:SchemaField ;
+    ccc:fieldName "modelSettings" ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "object" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldDescription "Per-model overrides: model-id → settings object. Witnessed keys: claude-opus-5-5, glm-5.3-flash (e.g. effortLevel: low)." .
+
+ccc:settings_mcpServers
+    a ccc:SchemaField ;
+    ccc:fieldName "mcpServers" ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "object" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldDescription "MCP server definitions: id → {command, args?, env?}. Witnessed: open-ontologies, osx-clnr, bcinr, wasm4pm-planner." .
+
+ccc:settings_askUserQuestionTimeout
+    a ccc:SchemaField ;
+    ccc:fieldName "askUserQuestionTimeout" ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "string" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldDescription "Timeout for AskUserQuestion prompts. Witnessed value: \"60s\" (duration string)." .
+
+ccc:settings_tui
+    a ccc:SchemaField ;
+    ccc:fieldName "tui" ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "enum" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldEnumValues "fullscreen" ;
+    ccc:fieldDescription "TUI rendering mode. Witnessed value: fullscreen." .
+
+ccc:settings_voice
+    a ccc:SchemaField ;
+    ccc:fieldName "voice" ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "object" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldDescription "Voice input config {enabled: boolean, mode: string}. Witnessed: {enabled: true, mode: hold}." .
+
+ccc:settings_voiceEnabled
+    a ccc:SchemaField ;
+    ccc:fieldName "voiceEnabled" ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "boolean" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldDescription "Voice input enabled (top-level boolean, parallel to voice object). Witnessed: true." .
+
+ccc:settings_skipDangerousModePermissionPrompt
+    a ccc:SchemaField ;
+    ccc:fieldName "skipDangerousModePermissionPrompt" ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "boolean" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldDescription "Skip the confirmation prompt when entering bypassPermissions mode. Witnessed: true." .
+
+ccc:settings_skipWorkflowUsageWarning
+    a ccc:SchemaField ;
+    ccc:fieldName "skipWorkflowUsageWarning" ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "boolean" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldDescription "Skip the Workflow usage warning banner. Witnessed: true." .
+
+ccc:settings_skipAutoPermissionPrompt
+    a ccc:SchemaField ;
+    ccc:fieldName "skipAutoPermissionPrompt" ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "boolean" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldDescription "Skip the auto-allow permission prompt. Witnessed: true." .
+
+ccc:settings_agentPushNotifEnabled
+    a ccc:SchemaField ;
+    ccc:fieldName "agentPushNotifEnabled" ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "boolean" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldDescription "Push notification when a background agent finishes. Witnessed: true." .
+
+ccc:settings_editorMode
+    a ccc:SchemaField ;
+    ccc:fieldName "editorMode" ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "enum" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldEnumValues "normal vim" ;
+    ccc:fieldDescription "Editor keybinding mode. Witnessed value: vim." .
+
+ccc:settings_verbose
+    a ccc:SchemaField ;
+    ccc:fieldName "verbose" ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "boolean" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldDescription "Verbose output stream. Witnessed: false." .
+
+ccc:settings_crossSessionInbound
+    a ccc:SchemaField ;
+    ccc:fieldName "crossSessionInbound" ;
+    ccc:fieldSurface ccc:SettingsJson ;
+    ccc:fieldType "enum" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldEnumValues "accept" ;
+    ccc:fieldDescription "Policy for cross-session inbound messages. Witnessed value: accept." .
+
+# ══════════════════════════════════════════════════════════════════════════════
 # SEMANTIC TOKEN TYPE INDIVIDUALS
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -574,4 +863,275 @@ lsp:max_release_actuation               law:status law:ADMITTED .
 # Methods NOT supported (read-only surface)
 lsp:textDocument_willSaveWaitUntil      law:status law:REFUSED ; law:reason "read-only surface — server emits diagnostics and suggestions only" .
 
+
+# --- ontology reconciliation (P10): analyzers richer than TTL, encode the delta ---
+# Evidence sources (authorities, cited per individual):
+#   src/analyzers/json.rs        — VALID_HOOK_EVENTS, VALID_HOOK_TYPES,
+#                                  VALID_WORKTREE_BASE_REFS, VALID_SKILL_OVERRIDES,
+#                                  VALID_PARENT_SETTINGS_BEHAVIOR, VALID_MCP_SERVER_TYPES,
+#                                  VALID_MODELS, VALID_EFFORT_LEVELS, VALID_PERMISSION_MODES,
+#                                  deprecated-key rules CCC-JSON-001/002/013
+#   src/analyzers/frontmatter.rs — VALID_CONTEXT_VALUES, VALID_AGENT_EFFORT_LEVELS,
+#                                  1024-char description limit (CCC-AGENT-005)
+#   src/analyzers/commands.rs    — allowed-tools / disable-model-invocation validation
+#   src/file_types.rs            — SUPPORTED_FILE_TYPES languageId authority
+# Court: tests/ttl_reconciliation.rs (bidirectional text-level anti-drift fence).
+# The TTL here catches UP to the hand-written analyzers; it does not replace them.
+
+ccc:HookEvent         a rdfs:Class ; rdfs:label "Hook Event" ; rdfs:comment "A valid hooks-object event name (authority: analyzers/json.rs VALID_HOOK_EVENTS)" .
+ccc:EnumConstraint    a rdfs:Class ; rdfs:label "Enum Constraint" ; rdfs:comment "A closed value set enforced by an analyzer enum table" .
+ccc:DeprecatedKey     a rdfs:Class ; rdfs:label "Deprecated Key" ; rdfs:comment "A config key the analyzers flag as deprecated (DiagnosticRule-adjacent)" .
+ccc:LanguageId        a rdfs:Class ; rdfs:label "Language Id" ; rdfs:comment "Canonical LSP languageId (authority: src/file_types.rs SUPPORTED_FILE_TYPES)" .
+
+ccc:eventName         a rdf:Property ; rdfs:label "Event Name" ; rdfs:comment "The literal hook-event string on the wire" .
+ccc:enumFor           a rdf:Property ; rdfs:label "Enum For" ; rdfs:comment "Settings field this enum constrains" .
+ccc:enumValues        a rdf:Property ; rdfs:label "Enum Values" ; rdfs:comment "Space-separated closed value set" .
+ccc:deprecatedKey     a rdf:Property ; rdfs:label "Deprecated Key" ; rdfs:comment "The deprecated key literal" .
+ccc:replacementKey    a rdf:Property ; rdfs:label "Replacement Key" ; rdfs:comment "What to use instead" .
+ccc:diagCode          a rdf:Property ; rdfs:label "Diag Code" ; rdfs:comment "Diagnostic code that fires for this key" .
+ccc:languageIdValue   a rdf:Property ; rdfs:label "Language Id Value" ; rdfs:comment "The languageId string" .
+
+# ── Hook events (26) — authority: src/analyzers/json.rs VALID_HOOK_EVENTS ──
+
+ccc:hookEvent_preToolUse a ccc:HookEvent ; ccc:eventName "PreToolUse" .
+ccc:hookEvent_postToolUse a ccc:HookEvent ; ccc:eventName "PostToolUse" .
+ccc:hookEvent_postToolUseFailure a ccc:HookEvent ; ccc:eventName "PostToolUseFailure" .
+ccc:hookEvent_stop a ccc:HookEvent ; ccc:eventName "Stop" .
+ccc:hookEvent_stopFailure a ccc:HookEvent ; ccc:eventName "StopFailure" .
+ccc:hookEvent_subagentStart a ccc:HookEvent ; ccc:eventName "SubagentStart" .
+ccc:hookEvent_subagentStop a ccc:HookEvent ; ccc:eventName "SubagentStop" .
+ccc:hookEvent_notification a ccc:HookEvent ; ccc:eventName "Notification" .
+ccc:hookEvent_sessionStart a ccc:HookEvent ; ccc:eventName "SessionStart" .
+ccc:hookEvent_sessionEnd a ccc:HookEvent ; ccc:eventName "SessionEnd" .
+ccc:hookEvent_preCompact a ccc:HookEvent ; ccc:eventName "PreCompact" .
+ccc:hookEvent_postCompact a ccc:HookEvent ; ccc:eventName "PostCompact" .
+ccc:hookEvent_userPromptSubmit a ccc:HookEvent ; ccc:eventName "UserPromptSubmit" .
+ccc:hookEvent_permissionRequest a ccc:HookEvent ; ccc:eventName "PermissionRequest" .
+ccc:hookEvent_permissionDenied a ccc:HookEvent ; ccc:eventName "PermissionDenied" .
+ccc:hookEvent_configChange a ccc:HookEvent ; ccc:eventName "ConfigChange" .
+ccc:hookEvent_cwdChanged a ccc:HookEvent ; ccc:eventName "CwdChanged" .
+ccc:hookEvent_fileChanged a ccc:HookEvent ; ccc:eventName "FileChanged" .
+ccc:hookEvent_instructionsLoaded a ccc:HookEvent ; ccc:eventName "InstructionsLoaded" .
+ccc:hookEvent_messageDisplay a ccc:HookEvent ; ccc:eventName "MessageDisplay" .
+ccc:hookEvent_teammateIdle a ccc:HookEvent ; ccc:eventName "TeammateIdle" .
+ccc:hookEvent_taskCompleted a ccc:HookEvent ; ccc:eventName "TaskCompleted" .
+ccc:hookEvent_taskCreated a ccc:HookEvent ; ccc:eventName "TaskCreated" .
+ccc:hookEvent_setup a ccc:HookEvent ; ccc:eventName "Setup" .
+ccc:hookEvent_elicitation a ccc:HookEvent ; ccc:eventName "Elicitation" .
+ccc:hookEvent_elicitationResult a ccc:HookEvent ; ccc:eventName "ElicitationResult" .
+
+# ── Enum constraints from src/analyzers/json.rs ──
+
+ccc:enum_hookTypes a ccc:EnumConstraint ;
+    ccc:enumFor "hooks.<event>[].hooks[].type (CCC-HOOK-004)" ;
+    ccc:enumValues "command prompt agent http mcp_tool" .
+
+ccc:enum_worktreeBaseRef a ccc:EnumConstraint ;
+    ccc:enumFor "worktree.baseRef (CCC-JSON-008)" ;
+    ccc:enumValues "fresh head" .
+
+ccc:enum_skillOverrides a ccc:EnumConstraint ;
+    ccc:enumFor "skillOverrides.<skill> (CCC-JSON-009)" ;
+    ccc:enumValues "on off name-only user-invocable-only" .
+
+ccc:enum_parentSettingsBehavior a ccc:EnumConstraint ;
+    ccc:enumFor "parentSettingsBehavior (CCC-JSON-010)" ;
+    ccc:enumValues "first-wins merge" .
+
+ccc:enum_mcpServerTypes a ccc:EnumConstraint ;
+    ccc:enumFor "mcpServers.<name>.type (CCC-JSON-011)" ;
+    ccc:enumValues "stdio sse" .
+
+ccc:enum_models a ccc:EnumConstraint ;
+    ccc:enumFor "model (CCC-JSON-004)" ;
+    ccc:enumValues "opus sonnet haiku fable claude-opus-5 claude-sonnet-5 claude-fable-5 claude-haiku-4-5-20251001" .
+
+ccc:enum_effortLevels a ccc:EnumConstraint ;
+    ccc:enumFor "effortLevel (CCC-JSON-005)" ;
+    ccc:enumValues "low medium high xhigh max" .
+
+ccc:enum_permissionModes a ccc:EnumConstraint ;
+    ccc:enumFor "permissionMode / permissions.defaultMode (CCC-JSON-006)" ;
+    ccc:enumValues "default manual plan acceptEdits bypassPermissions auto" .
+
+# ── SKILL/agent frontmatter fields the analyzers validate but TTL lacked ──
+
+ccc:skill_allowed_tools
+    a ccc:SchemaField ;
+    ccc:fieldName "allowed-tools" ;
+    ccc:fieldSurface ccc:SkillMd ;
+    ccc:fieldType "array" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldDescription "Tools the skill/command may use. Entries validated against Tool(pattern) grammar — authority: src/analyzers/commands.rs (CCC-CMD-004)." .
+
+ccc:skill_disable_model_invocation
+    a ccc:SchemaField ;
+    ccc:fieldName "disable-model-invocation" ;
+    ccc:fieldSurface ccc:SkillMd ;
+    ccc:fieldType "boolean" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldDescription "Must be true or false — authority: src/analyzers/commands.rs." .
+
+ccc:skillfrontmatter_context
+    a ccc:SchemaField ;
+    ccc:fieldName "context" ;
+    ccc:fieldSurface ccc:SkillMd ;
+    ccc:fieldType "enum" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldEnumValues "fork" ;
+    ccc:fieldDescription "Execution context; only fork is documented — authority: src/analyzers/frontmatter.rs VALID_CONTEXT_VALUES (CCC-AGENT-008)." .
+
+ccc:skillfrontmatter_effort
+    a ccc:SchemaField ;
+    ccc:fieldName "effort" ;
+    ccc:fieldSurface ccc:SkillMd ;
+    ccc:fieldType "enum" ;
+    ccc:fieldRequired "false"^^xsd:boolean ;
+    ccc:fieldEnumValues "low medium high xhigh max" ;
+    ccc:fieldDescription "Effort level — authority: src/analyzers/frontmatter.rs VALID_AGENT_EFFORT_LEVELS (CCC-AGENT-012)." .
+
+ccc:constraint_description_max_length
+    a ccc:DiagnosticRule ;
+    ccc:diagCode "CCC-AGENT-005" ;
+    ccc:diagFamily "frontmatter" ;
+    ccc:diagSurface ccc:SkillMd ;
+    ccc:diagMessage "description exceeds 1024 chars / is missing or empty" ;
+    ccc:diagSeverity "error" ;
+    ccc:diagLawAxis "Protocol" ;
+    rdfs:comment "MaxLength constraint: description must be at most 1024 chars (authority: src/analyzers/frontmatter.rs)." .
+
+# ── Deprecated keys (DiagnosticRule-adjacent) from analyzers/json.rs ──
+
+ccc:dep_enabledMcpjsonServers a ccc:DeprecatedKey ;
+    ccc:deprecatedKey "enabledMcpjsonServers" ;
+    ccc:replacementKey "mcpServers" ;
+    ccc:diagCode "CCC-JSON-001" .
+
+ccc:dep_disabledMcpjsonServers a ccc:DeprecatedKey ;
+    ccc:deprecatedKey "disabledMcpjsonServers" ;
+    ccc:replacementKey "mcpServers" ;
+    ccc:diagCode "CCC-JSON-001" .
+
+ccc:dep_mcpJsonServers a ccc:DeprecatedKey ;
+    ccc:deprecatedKey "mcpJsonServers" ;
+    ccc:replacementKey "mcpServers" ;
+    ccc:diagCode "CCC-JSON-001" .
+
+ccc:dep_hookEvents a ccc:DeprecatedKey ;
+    ccc:deprecatedKey "hookEvents" ;
+    ccc:replacementKey "hooks.PreToolUse / hooks.PostToolUse" ;
+    ccc:diagCode "CCC-JSON-002" .
+
+ccc:dep_hook_events a ccc:DeprecatedKey ;
+    ccc:deprecatedKey "hook_events" ;
+    ccc:replacementKey "hooks.PreToolUse / hooks.PostToolUse" ;
+    ccc:diagCode "CCC-JSON-002" .
+
+ccc:dep_pre_tool_use a ccc:DeprecatedKey ;
+    ccc:deprecatedKey "pre_tool_use" ;
+    ccc:replacementKey "hooks.PreToolUse / hooks.PostToolUse" ;
+    ccc:diagCode "CCC-JSON-002" .
+
+ccc:dep_post_tool_use a ccc:DeprecatedKey ;
+    ccc:deprecatedKey "post_tool_use" ;
+    ccc:replacementKey "hooks.PreToolUse / hooks.PostToolUse" ;
+    ccc:diagCode "CCC-JSON-002" .
+
+ccc:dep_themes a ccc:DeprecatedKey ;
+    ccc:deprecatedKey "themes" ;
+    ccc:replacementKey "experimental" ; # sub-key: experimental.themes (message text in analyzers/json.rs)
+    ccc:diagCode "CCC-JSON-013" .
+
+ccc:dep_monitors a ccc:DeprecatedKey ;
+    ccc:deprecatedKey "monitors" ;
+    ccc:replacementKey "experimental" ; # sub-key: experimental.monitors
+    ccc:diagCode "CCC-JSON-013" .
+
+# ── Canonical languageIds (authority: src/file_types.rs SUPPORTED_FILE_TYPES;
+#    this also grounds the C10 languageId reconciliation) ──
+
+ccc:langId_claudeConfigMarkdown a ccc:LanguageId ;
+    ccc:languageIdValue "claude-config-markdown" ;
+    rdfs:comment "Authority: src/file_types.rs SUPPORTED_FILE_TYPES (agents/*.md, skills/*/SKILL.md, AGENTS.md, CLAUDE.md)." .
+
+ccc:langId_claudeConfigJson a ccc:LanguageId ;
+    ccc:languageIdValue "claude-config-json" ;
+    rdfs:comment "Authority: src/file_types.rs SUPPORTED_FILE_TYPES (settings*.json, keybindings.json, marketplace.json, mcp.json, plugin.json)." .
+
+ccc:langId_shellscript a ccc:LanguageId ;
+    ccc:languageIdValue "shellscript" ;
+    rdfs:comment "Authority: src/file_types.rs SUPPORTED_FILE_TYPES (hooks/*.sh)." .
+
+ccc:langId_claudeConfigToml a ccc:LanguageId ;
+    ccc:languageIdValue "claude-config-toml" ;
+    rdfs:comment "Authority: src/file_types.rs SUPPORTED_FILE_TYPES (.claude/lsp-max-auto.toml)." .
+
 # End of ontology
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Lane P9 (hand-written append): slash-command markdown surface
+# ConfigSurface + DiagnosticRule individuals ONLY — existing entries untouched.
+# ══════════════════════════════════════════════════════════════════════════════
+
+ccc:CommandsMarkdown
+    a ccc:ConfigSurface ;
+    ccc:filePattern "**/.claude/commands/*.md" ;
+    ccc:languageId "markdown" ;
+    ccc:analyzerModule "commands" ;
+    ccc:analyzerModulePascal "Commands" ;
+    ccc:parserKind "markdown" .
+
+ccc:CMD-001
+    a ccc:DiagnosticRule ;
+    ccc:diagCode "CCC-CMD-001" ;
+    ccc:diagFamily "commands" ;
+    ccc:diagSurface ccc:CommandsMarkdown ;
+    ccc:diagMessage "Command has no description (frontmatter description or H1 title)" ;
+    ccc:diagSeverity "warning" ;
+    ccc:diagLawAxis "Protocol" .
+
+ccc:CMD-002
+    a ccc:DiagnosticRule ;
+    ccc:diagCode "CCC-CMD-002" ;
+    ccc:diagFamily "commands" ;
+    ccc:diagSurface ccc:CommandsMarkdown ;
+    ccc:diagMessage "argument-hint implies arguments but body has no $ARGUMENTS placeholder" ;
+    ccc:diagSeverity "warning" ;
+    ccc:diagLawAxis "Protocol" .
+
+ccc:CMD-003
+    a ccc:DiagnosticRule ;
+    ccc:diagCode "CCC-CMD-003" ;
+    ccc:diagFamily "commands" ;
+    ccc:diagSurface ccc:CommandsMarkdown ;
+    ccc:diagMessage "@file reference does not resolve relative to the command file" ;
+    ccc:diagSeverity "error" ;
+    ccc:diagLawAxis "Protocol" .
+
+ccc:CMD-004
+    a ccc:DiagnosticRule ;
+    ccc:diagCode "CCC-CMD-004" ;
+    ccc:diagFamily "commands" ;
+    ccc:diagSurface ccc:CommandsMarkdown ;
+    ccc:diagMessage "allowed-tools entry does not match Tool(pattern) grammar" ;
+    ccc:diagSeverity "warning" ;
+    ccc:diagLawAxis "Protocol" .
+
+ccc:CMD-005
+    a ccc:DiagnosticRule ;
+    ccc:diagCode "CCC-CMD-005" ;
+    ccc:diagFamily "commands" ;
+    ccc:diagSurface ccc:CommandsMarkdown ;
+    ccc:diagMessage "Command frontmatter field has invalid value or type" ;
+    ccc:diagSeverity "warning" ;
+    ccc:diagLawAxis "Protocol" .
+
+ccc:CMD-006
+    a ccc:DiagnosticRule ;
+    ccc:diagCode "CCC-CMD-006" ;
+    ccc:diagFamily "commands" ;
+    ccc:diagSurface ccc:CommandsMarkdown ;
+    ccc:diagMessage "Shell-prefix span '`!' is not closed with a backtick on the same line" ;
+    ccc:diagSeverity "warning" ;
+    ccc:diagLawAxis "Protocol" .
+# End lane P9 append

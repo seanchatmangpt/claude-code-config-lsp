@@ -14,6 +14,9 @@
 // Exit code is 0 if every fixture came back clean, 1 otherwise. Pass
 // --allow <CODE> (repeatable) to permit specific diagnostic codes without
 // failing the run (useful for fixtures that are intentionally invalid).
+// Pass --fixtures <dir> (repeatable) to add an extra fixture directory
+// (walked recursively) on top of the repo's own config trees — e.g.
+//   node scripts/dogfood.mjs --fixtures tests/fixtures/claude-config
 import { spawn, execSync } from "node:child_process";
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -25,10 +28,13 @@ const repoRoot = execSync("git rev-parse --show-toplevel", { cwd: import.meta.di
 
 const args = process.argv.slice(2);
 const allowed = new Set();
+const extraFixtureDirs = [];
 const positional = [];
 for (let i = 0; i < args.length; i++) {
   if (args[i] === "--allow") {
     allowed.add(args[++i]);
+  } else if (args[i] === "--fixtures") {
+    extraFixtureDirs.push(args[++i]);
   } else {
     positional.push(args[i]);
   }
@@ -58,6 +64,10 @@ const isConfigFile = (p) =>
 const fixtures = [
   ...walk(path.join(repoRoot, ".claude"), isConfigFile),
   ...walk(path.join(repoRoot, ".claude-plugin"), isConfigFile),
+  ...extraFixtureDirs.flatMap((d) => {
+    const abs = path.isAbsolute(d) ? d : path.join(repoRoot, d);
+    return walk(abs, isConfigFile);
+  }),
   path.join(repoRoot, ".mcp.json"),
 ].filter(existsSync).sort();
 

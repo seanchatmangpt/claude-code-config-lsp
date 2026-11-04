@@ -67,4 +67,22 @@ impl AdmittedReceipt {
             proof: format!("praxis::admit[v1]"),
         }
     }
+
+    /// Verify that this receipt attests the given evidence.
+    ///
+    /// A receipt is valid only when (a) its proof marker names the praxis
+    /// admit scheme and (b) the BLAKE3 hash of the evidence's canonical JSON
+    /// serialization equals the recorded hash. Any byte flipped in the
+    /// payload changes the serialization and therefore fails verification.
+    pub fn verify<T>(&self, evidence: &Evidence<T, Admitted, ()>) -> bool
+    where
+        T: Serialize,
+    {
+        if self.proof != "praxis::admit[v1]" {
+            return false;
+        }
+        let evidence_json = serde_json::to_string(evidence).unwrap_or_default();
+        let computed = blake3::hash(evidence_json.as_bytes()).to_hex().to_string();
+        computed == self.hash
+    }
 }

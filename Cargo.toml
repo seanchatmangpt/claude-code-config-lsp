@@ -16,13 +16,13 @@ path = "src/lib.rs"
 clap-noun-verb = "26.6.2"
 clap-noun-verb-macros = "26.6.2"
 linkme = "0.3.36"
-lsp-max = "26.7.3"
+lsp-max = { version = "26.11.3", path = "../lsp-max" }
 lsp-types-max = { version = "26.6", features = ["proposed"] }
 tree-sitter = "0.26"
 tree-sitter-json = "0.23"
 tokio = { version = "1", features = ["io-std", "io-util", "macros", "rt-multi-thread"] }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+serde_json = { version = "1.0", features = ["preserve_order"] }
 async-trait = "0.1"
 tracing = "0.1"
 tracing-subscriber = "0.3"

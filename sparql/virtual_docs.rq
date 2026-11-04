@@ -6,3 +6,5 @@ SELECT ?virtual_doc_uri ?virtual_doc_scheme ?doc_type ?doc_title ?server_name ?i
     BIND("ClaudeCodeConfig" AS ?server_name)
     BIND("true" AS ?include_diagnostics)
 }
+
+ORDER BY ?virtual_doc_uri

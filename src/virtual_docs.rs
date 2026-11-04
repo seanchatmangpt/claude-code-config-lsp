@@ -34,6 +34,26 @@ pub fn is_virtual_doc_uri(uri: &str) -> bool {
     uri.starts_with("claude-config://")
 }
 
+/// Render any `claude-config://` virtual document. `claude-config://health`
+/// keeps its coverage-based render; the H1 harness documents
+/// (`inventory`/`receipts`/`standing`) dispatch to [`crate::harness_docs`]
+/// over `root`. Unknown virtual URIs return `None` — the backend maps that
+/// to `method_not_found`.
+///
+/// Backend registration point (P12): replace the unconditional
+/// `virtual_docs::render()` call in
+/// `ClaudeCodeConfigBackend::text_document_content` with
+/// `render_uri(uri, root)`, where `root` is the backend's workspace root.
+pub fn render_uri(uri: &str, root: &str) -> Option<String> {
+    if let Some(doc) = crate::harness_docs::render_uri(uri, root) {
+        return Some(doc);
+    }
+    if uri == "claude-config://health" {
+        return Some(render());
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

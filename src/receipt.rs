@@ -1,5 +1,5 @@
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use serde::{Serialize, Deserialize};
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Debug)]
 pub struct FileChecksum {
@@ -61,17 +61,18 @@ pub fn read_all_receipts(workspace_root: &Path) -> Result<Vec<Receipt>, String> 
         return Ok(Vec::new());
     }
     let mut receipts = Vec::new();
-    let entries = std::fs::read_dir(&dir)
-        .map_err(|e| format!("Failed to read receipts directory: {e}"))?;
+    let entries =
+        std::fs::read_dir(&dir).map_err(|e| format!("Failed to read receipts directory: {e}"))?;
     for entry in entries {
         let entry = entry.map_err(|e| format!("Failed to read entry: {e}"))?;
         let path = entry.path();
         if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("json") {
             let content = std::fs::read_to_string(&path)
                 .map_err(|e| format!("Failed to read receipt file {}: {e}", path.display()))?;
-            let receipt: Receipt = serde_json::from_str(&content)
-                .map_err(|e| format!("Failed to deserialize receipt from {}: {e}", path.display()))?;
-            
+            let receipt: Receipt = serde_json::from_str(&content).map_err(|e| {
+                format!("Failed to deserialize receipt from {}: {e}", path.display())
+            })?;
+
             // Verify computed hash matches receipt.hash
             let computed = compute_receipt_hash(
                 &receipt.timestamp,
@@ -87,7 +88,7 @@ pub fn read_all_receipts(workspace_root: &Path) -> Result<Vec<Receipt>, String> 
                     computed
                 ));
             }
-            
+
             // Verify filename (without .json) matches receipt.hash
             let file_stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
             if file_stem != receipt.hash {
@@ -97,7 +98,7 @@ pub fn read_all_receipts(workspace_root: &Path) -> Result<Vec<Receipt>, String> 
                     receipt.hash
                 ));
             }
-            
+
             receipts.push(receipt);
         }
     }
@@ -113,12 +114,12 @@ pub fn find_latest_receipt(receipts: &[Receipt]) -> Option<Receipt> {
         .iter()
         .filter_map(|r| r.previous_receipt_hash.as_deref())
         .collect();
-    
+
     let mut candidates: Vec<&Receipt> = receipts
         .iter()
         .filter(|r| !referenced.contains(r.hash.as_str()))
         .collect();
-    
+
     // Sort by timestamp to break ties or ensure latest in case of multiple heads,
     // though in a valid chain there should be at most one.
     candidates.sort_by_key(|r| r.timestamp);
@@ -130,18 +131,17 @@ pub fn build_chain(receipts: &[Receipt]) -> Result<Vec<Receipt>, String> {
     if receipts.is_empty() {
         return Ok(Vec::new());
     }
-    let latest = find_latest_receipt(receipts)
-        .ok_or_else(|| "Could not find latest receipt (possible cycle or empty chain)".to_string())?;
-    
+    let latest = find_latest_receipt(receipts).ok_or_else(|| {
+        "Could not find latest receipt (possible cycle or empty chain)".to_string()
+    })?;
+
     let mut chain = Vec::new();
     let mut current = latest;
     let mut visited = std::collections::HashSet::new();
-    
-    let by_hash: std::collections::HashMap<&str, &Receipt> = receipts
-        .iter()
-        .map(|r| (r.hash.as_str(), r))
-        .collect();
-        
+
+    let by_hash: std::collections::HashMap<&str, &Receipt> =
+        receipts.iter().map(|r| (r.hash.as_str(), r)).collect();
+
     loop {
         if !visited.insert(current.hash.clone()) {
             return Err("Cycle detected in receipt chain".to_string());
@@ -151,13 +151,16 @@ pub fn build_chain(receipts: &[Receipt]) -> Result<Vec<Receipt>, String> {
             if let Some(prev_receipt) = by_hash.get(prev_hash.as_str()) {
                 current = (*prev_receipt).clone();
             } else {
-                return Err(format!("Broken chain: previous receipt hash {} not found on disk", prev_hash));
+                return Err(format!(
+                    "Broken chain: previous receipt hash {} not found on disk",
+                    prev_hash
+                ));
             }
         } else {
             break; // reached genesis
         }
     }
-    
+
     chain.reverse();
     Ok(chain)
 }
@@ -170,15 +173,16 @@ pub fn get_current_workspace_checksums(workspace_root: &Path) -> Result<Vec<File
         if crate::scan::classify(&path_str) == "unknown" {
             continue;
         }
-        
-        let rel_path = path.strip_prefix(workspace_root)
+
+        let rel_path = path
+            .strip_prefix(workspace_root)
             .map_err(|e| format!("Failed to strip prefix: {e}"))?
             .to_string_lossy()
             .to_string();
-            
+
         let checksum = compute_file_checksum(&path)
             .map_err(|e| format!("Failed to compute checksum for {}: {e}", path.display()))?;
-            
+
         current.push(FileChecksum {
             path: rel_path,
             checksum,
@@ -195,10 +199,10 @@ pub fn verify_receipt_chain(workspace_root: &Path) -> Result<(), String> {
     if receipts.is_empty() {
         return Err("No receipts found. Chain is empty.".to_string());
     }
-    
+
     // Build the chain from genesis to latest
     let chain = build_chain(&receipts)?;
-    
+
     // Verify Merkle and chain link consistency
     for i in 0..chain.len() {
         let receipt = &chain[i];
@@ -231,29 +235,32 @@ pub fn verify_receipt_chain(workspace_root: &Path) -> Result<(), String> {
             }
         }
     }
-    
+
     // Check that the current workspace files match the latest receipt's file checksums
     let latest = chain.last().unwrap();
     let mut current_checksums = get_current_workspace_checksums(workspace_root)?;
     let mut latest_checksums = latest.file_checksums.clone();
     current_checksums.sort_by(|a, b| a.path.cmp(&b.path));
     latest_checksums.sort_by(|a, b| a.path.cmp(&b.path));
-    
+
     if current_checksums != latest_checksums {
         return Err("Workspace config files do not match the latest receipt".to_string());
     }
-    
+
     Ok(())
 }
 
 /// Automatically issue and write a new receipt to disk if the configuration state
 /// (checksums or score) differs from the latest receipt.
-pub fn maybe_issue_receipt(workspace_root: &Path, current_score: f64) -> Result<Option<Receipt>, String> {
+pub fn maybe_issue_receipt(
+    workspace_root: &Path,
+    current_score: f64,
+) -> Result<Option<Receipt>, String> {
     let current_checksums = get_current_workspace_checksums(workspace_root)?;
     let receipts = read_all_receipts(workspace_root)?;
-    
+
     let latest = find_latest_receipt(&receipts);
-    
+
     let should_issue = match &latest {
         None => true, // Genesis receipt
         Some(lat) => {
@@ -261,23 +268,18 @@ pub fn maybe_issue_receipt(workspace_root: &Path, current_score: f64) -> Result<
             lat_checksums.sort_by(|a, b| a.path.cmp(&b.path));
             let mut cur_checksums = current_checksums.clone();
             cur_checksums.sort_by(|a, b| a.path.cmp(&b.path));
-            
+
             // Check if checksums differ or conformance score differs
             cur_checksums != lat_checksums || (lat.conformance_score - current_score).abs() > 1e-9
         }
     };
-    
+
     if should_issue {
         let prev_hash = latest.map(|r| r.hash);
         let timestamp = chrono::Utc::now();
-        
-        let hash = compute_receipt_hash(
-            &timestamp,
-            current_score,
-            &current_checksums,
-            &prev_hash,
-        );
-        
+
+        let hash = compute_receipt_hash(&timestamp, current_score, &current_checksums, &prev_hash);
+
         let receipt = Receipt {
             timestamp,
             conformance_score: current_score,
@@ -285,18 +287,18 @@ pub fn maybe_issue_receipt(workspace_root: &Path, current_score: f64) -> Result<
             previous_receipt_hash: prev_hash,
             hash: hash.clone(),
         };
-        
+
         let dir = get_receipts_dir(workspace_root);
         std::fs::create_dir_all(&dir)
             .map_err(|e| format!("Failed to create receipts directory: {e}"))?;
-            
+
         let file_path = dir.join(format!("{}.json", hash));
         let content = serde_json::to_string_pretty(&receipt)
             .map_err(|e| format!("Failed to serialize receipt: {e}"))?;
-            
+
         std::fs::write(&file_path, content)
             .map_err(|e| format!("Failed to write receipt to {}: {e}", file_path.display()))?;
-            
+
         Ok(Some(receipt))
     } else {
         Ok(None)

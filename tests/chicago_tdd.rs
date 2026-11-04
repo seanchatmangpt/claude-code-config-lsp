@@ -10,7 +10,7 @@
 //! - analyzers::frontmatter::validate_agent_frontmatter
 
 use chicago_tdd_tools::prelude::*;
-use claude_code_config_lsp::analyzers::{frontmatter, json, claude_md};
+use claude_code_config_lsp::analyzers::{claude_md, frontmatter, json};
 
 // ────────────────────────────────────────────────────────────────────────────
 // Test Fixture for JSON Analyzers
@@ -33,7 +33,9 @@ impl SettingsJsonFixture {
             valid_basic: r#"{"hooks": {}, "mcpServers": {}}"#.to_string(),
             valid_with_model: r#"{"model": "sonnet", "mcpServers": {}}"#.to_string(),
             valid_with_effort: r#"{"effortLevel": "max", "mcpServers": {}}"#.to_string(),
-            valid_with_hooks: r#"{"hooks": {"PreToolUse": [], "PostToolUse": [], "SessionStart": []}}"#.to_string(),
+            valid_with_hooks:
+                r#"{"hooks": {"PreToolUse": [], "PostToolUse": [], "SessionStart": []}}"#
+                    .to_string(),
             invalid_model_gpt: r#"{"model": "gpt-4"}"#.to_string(),
             invalid_effort_extreme: r#"{"effortLevel": "extreme"}"#.to_string(),
             invalid_permission_unsafe: r#"{"permissionMode": "unsafe"}"#.to_string(),
@@ -73,7 +75,8 @@ impl ClaudeMdFixture {
     fn new() -> Self {
         Self {
             valid_with_h1: "# My CLAUDE.md Title\n\nContent here".to_string(),
-            valid_with_content: "# Configuration Guide\n\n## Overview\n\nThis is a test".to_string(),
+            valid_with_content: "# Configuration Guide\n\n## Overview\n\nThis is a test"
+                .to_string(),
             invalid_no_h1: "## Not a top-level heading\n\nContent here".to_string(),
             invalid_empty: "".to_string(),
         }
@@ -121,7 +124,10 @@ fn test_validate_settings_json_enums_valid_basic() {
     let findings = json::validate_settings_json_enums(&fixture.valid_basic);
 
     // Assert
-    assert!(findings.is_empty(), "Expected no findings for valid basic settings.json");
+    assert!(
+        findings.is_empty(),
+        "Expected no findings for valid basic settings.json"
+    );
 }
 
 #[test]
@@ -133,7 +139,10 @@ fn test_validate_settings_json_enums_valid_with_model_sonnet() {
     let findings = json::validate_settings_json_enums(&fixture.valid_with_model);
 
     // Assert
-    assert!(findings.is_empty(), "Expected no findings for valid model 'sonnet'");
+    assert!(
+        findings.is_empty(),
+        "Expected no findings for valid model 'sonnet'"
+    );
 }
 
 #[test]
@@ -145,7 +154,10 @@ fn test_validate_settings_json_enums_valid_full_model_id() {
     let findings = json::validate_settings_json_enums(input);
 
     // Assert
-    assert!(findings.is_empty(), "Expected no findings for full model ID");
+    assert!(
+        findings.is_empty(),
+        "Expected no findings for full model ID"
+    );
 }
 
 #[test]
@@ -157,7 +169,10 @@ fn test_validate_settings_json_enums_valid_effort_level() {
     let findings = json::validate_settings_json_enums(&fixture.valid_with_effort);
 
     // Assert
-    assert!(findings.is_empty(), "Expected no findings for valid effort level 'max'");
+    assert!(
+        findings.is_empty(),
+        "Expected no findings for valid effort level 'max'"
+    );
 }
 
 #[test]
@@ -169,7 +184,10 @@ fn test_validate_settings_json_enums_valid_permission_mode_auto() {
     let findings = json::validate_settings_json_enums(input);
 
     // Assert
-    assert!(findings.is_empty(), "Expected no findings for valid permissionMode 'auto'");
+    assert!(
+        findings.is_empty(),
+        "Expected no findings for valid permissionMode 'auto'"
+    );
 }
 
 #[test]
@@ -181,7 +199,10 @@ fn test_validate_settings_json_enums_valid_hook_events() {
     let findings = json::validate_settings_json_enums(&fixture.valid_with_hooks);
 
     // Assert
-    assert!(findings.is_empty(), "Expected no findings for valid hook events");
+    assert!(
+        findings.is_empty(),
+        "Expected no findings for valid hook events"
+    );
 }
 
 #[test]
@@ -193,7 +214,10 @@ fn test_validate_settings_json_enums_invalid_model_gpt4() {
     let findings = json::validate_settings_json_enums(&fixture.invalid_model_gpt);
 
     // Assert
-    assert!(!findings.is_empty(), "Expected findings for invalid model 'gpt-4'");
+    assert!(
+        !findings.is_empty(),
+        "Expected findings for invalid model 'gpt-4'"
+    );
     assert!(
         findings.iter().any(|f| f.code == "CCC-JSON-004"),
         "Expected CCC-JSON-004 code for invalid model"
@@ -209,7 +233,10 @@ fn test_validate_settings_json_enums_invalid_effort_level() {
     let findings = json::validate_settings_json_enums(&fixture.invalid_effort_extreme);
 
     // Assert
-    assert!(!findings.is_empty(), "Expected findings for invalid effort level");
+    assert!(
+        !findings.is_empty(),
+        "Expected findings for invalid effort level"
+    );
     assert!(
         findings.iter().any(|f| f.code == "CCC-JSON-005"),
         "Expected CCC-JSON-005 code for invalid effort level"
@@ -225,7 +252,10 @@ fn test_validate_settings_json_enums_invalid_permission_mode() {
     let findings = json::validate_settings_json_enums(&fixture.invalid_permission_unsafe);
 
     // Assert
-    assert!(!findings.is_empty(), "Expected findings for invalid permissionMode");
+    assert!(
+        !findings.is_empty(),
+        "Expected findings for invalid permissionMode"
+    );
     assert!(
         findings.iter().any(|f| f.code == "CCC-JSON-006"),
         "Expected CCC-JSON-006 code for invalid permissionMode"
@@ -241,7 +271,10 @@ fn test_validate_settings_json_enums_invalid_hook_event() {
     let findings = json::validate_settings_json_enums(&fixture.invalid_hook_on_tool_use);
 
     // Assert
-    assert!(!findings.is_empty(), "Expected findings for invalid hook event");
+    assert!(
+        !findings.is_empty(),
+        "Expected findings for invalid hook event"
+    );
     assert!(
         findings.iter().any(|f| f.code == "CCC-HOOK-001"),
         "Expected CCC-HOOK-001 code for invalid hook event"
@@ -257,7 +290,10 @@ fn test_validate_settings_json_enums_malformed_json() {
     let findings = json::validate_settings_json_enums(input);
 
     // Assert
-    assert!(findings.is_empty(), "Expected no findings for malformed JSON (syntax is tree-sitter's domain)");
+    assert!(
+        findings.is_empty(),
+        "Expected no findings for malformed JSON (syntax is tree-sitter's domain)"
+    );
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -273,7 +309,10 @@ fn test_validate_plugin_json_with_schema() {
     let findings = json::validate_plugin_json(&fixture.valid_with_schema);
 
     // Assert
-    assert!(findings.is_empty(), "Expected no findings for plugin.json with $schema");
+    assert!(
+        findings.is_empty(),
+        "Expected no findings for plugin.json with $schema"
+    );
 }
 
 #[test]
@@ -285,7 +324,10 @@ fn test_validate_plugin_json_full_structure() {
     let findings = json::validate_plugin_json(&fixture.valid_full_structure);
 
     // Assert
-    assert!(findings.is_empty(), "Expected no findings for complete plugin.json");
+    assert!(
+        findings.is_empty(),
+        "Expected no findings for complete plugin.json"
+    );
 }
 
 #[test]
@@ -297,7 +339,10 @@ fn test_validate_plugin_json_missing_schema() {
     let findings = json::validate_plugin_json(&fixture.invalid_missing_schema);
 
     // Assert
-    assert!(!findings.is_empty(), "Expected findings for missing $schema");
+    assert!(
+        !findings.is_empty(),
+        "Expected findings for missing $schema"
+    );
     assert!(
         findings.iter().any(|f| f.code == "CCC-JSON-007"),
         "Expected CCC-JSON-007 code for missing $schema"
@@ -313,7 +358,10 @@ fn test_validate_plugin_json_malformed_json() {
     let findings = json::validate_plugin_json(input);
 
     // Assert
-    assert!(findings.is_empty(), "Expected no findings for malformed plugin.json");
+    assert!(
+        findings.is_empty(),
+        "Expected no findings for malformed plugin.json"
+    );
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -329,7 +377,10 @@ fn test_validate_claude_md_valid_with_h1() {
     let findings = claude_md::validate_claude_md(&fixture.valid_with_h1);
 
     // Assert
-    assert!(findings.is_empty(), "Expected no findings for CLAUDE.md with H1 title");
+    assert!(
+        findings.is_empty(),
+        "Expected no findings for CLAUDE.md with H1 title"
+    );
 }
 
 #[test]
@@ -341,7 +392,10 @@ fn test_validate_claude_md_valid_with_content() {
     let findings = claude_md::validate_claude_md(&fixture.valid_with_content);
 
     // Assert
-    assert!(findings.is_empty(), "Expected no findings for CLAUDE.md with proper H1");
+    assert!(
+        findings.is_empty(),
+        "Expected no findings for CLAUDE.md with proper H1"
+    );
 }
 
 #[test]
@@ -353,7 +407,10 @@ fn test_validate_claude_md_invalid_no_h1() {
     let findings = claude_md::validate_claude_md(&fixture.invalid_no_h1);
 
     // Assert
-    assert!(!findings.is_empty(), "Expected findings for missing H1 title");
+    assert!(
+        !findings.is_empty(),
+        "Expected findings for missing H1 title"
+    );
     assert!(
         findings.iter().any(|f| f.code == "CCC-MD-006"),
         "Expected CCC-MD-006 code for missing H1 title"
@@ -369,7 +426,10 @@ fn test_validate_claude_md_invalid_empty() {
     let findings = claude_md::validate_claude_md(&fixture.invalid_empty);
 
     // Assert
-    assert!(!findings.is_empty(), "Expected findings for empty CLAUDE.md");
+    assert!(
+        !findings.is_empty(),
+        "Expected findings for empty CLAUDE.md"
+    );
     assert!(
         findings.iter().any(|f| f.code == "CCC-MD-006"),
         "Expected CCC-MD-006 code for empty content"
@@ -389,7 +449,10 @@ fn test_validate_agent_frontmatter_valid_basic() {
     let findings = frontmatter::validate_agent_frontmatter(&fixture.valid_basic);
 
     // Assert
-    assert!(findings.is_empty(), "Expected no findings for valid agent frontmatter");
+    assert!(
+        findings.is_empty(),
+        "Expected no findings for valid agent frontmatter"
+    );
 }
 
 #[test]
@@ -401,7 +464,10 @@ fn test_validate_agent_frontmatter_valid_with_tools() {
     let findings = frontmatter::validate_agent_frontmatter(&fixture.valid_with_tools);
 
     // Assert
-    assert!(findings.is_empty(), "Expected no findings for agent with valid tools");
+    assert!(
+        findings.is_empty(),
+        "Expected no findings for agent with valid tools"
+    );
 }
 
 #[test]
@@ -413,7 +479,10 @@ fn test_validate_agent_frontmatter_valid_with_model() {
     let findings = frontmatter::validate_agent_frontmatter(&fixture.valid_with_model);
 
     // Assert
-    assert!(findings.is_empty(), "Expected no findings for agent with valid model tier");
+    assert!(
+        findings.is_empty(),
+        "Expected no findings for agent with valid model tier"
+    );
 }
 
 #[test]
@@ -441,7 +510,10 @@ fn test_validate_agent_frontmatter_invalid_missing_description() {
     let findings = frontmatter::validate_agent_frontmatter(&fixture.invalid_missing_description);
 
     // Assert
-    assert!(!findings.is_empty(), "Expected findings for missing description");
+    assert!(
+        !findings.is_empty(),
+        "Expected findings for missing description"
+    );
     assert!(
         findings.iter().any(|f| f.code == "CCC-AGENT-005"),
         "Expected CCC-AGENT-005 code for missing description"
@@ -490,5 +562,8 @@ fn test_validate_agent_frontmatter_no_frontmatter() {
 
     // Assert
     // When there's no frontmatter, the validator returns empty findings (no triple-dash delimiter)
-    assert!(findings.is_empty(), "Expected no findings when frontmatter is completely absent");
+    assert!(
+        findings.is_empty(),
+        "Expected no findings when frontmatter is completely absent"
+    );
 }

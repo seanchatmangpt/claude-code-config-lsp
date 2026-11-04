@@ -76,13 +76,20 @@ mod tests {
     #[test]
     fn coverage_percent_matches_conformance_vector() {
         let report = coverage_report();
-        assert_eq!(report.total(), report.admitted + report.refused + report.unknown);
+        assert_eq!(
+            report.total(),
+            report.admitted + report.refused + report.unknown
+        );
         assert!(report.coverage_percent() >= 0.0 && report.coverage_percent() <= 100.0);
     }
 
     #[test]
     fn render_markdown_contains_counts() {
-        let report = CoverageReport { admitted: 6, refused: 27, unknown: 3 };
+        let report = CoverageReport {
+            admitted: 6,
+            refused: 27,
+            unknown: 3,
+        };
         let md = report.render_markdown();
         assert!(md.contains("6/36"));
         assert!(md.contains("16.7%"));
@@ -90,7 +97,11 @@ mod tests {
 
     #[test]
     fn empty_report_has_zero_percent() {
-        let report = CoverageReport { admitted: 0, refused: 0, unknown: 0 };
+        let report = CoverageReport {
+            admitted: 0,
+            refused: 0,
+            unknown: 0,
+        };
         assert_eq!(report.coverage_percent(), 0.0);
     }
 }

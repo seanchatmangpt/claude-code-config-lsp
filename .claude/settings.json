@@ -1,12 +1,24 @@
 {
   "lspServers": [
     {
+      "name": "lsp-max-compositor",
+      "command": "/Users/sac/lsp-max/target/release/lsp-max-compositor",
+      "args": [],
+      "extensionToLanguage": {
+        ".json": "claude-config-json",
+        ".md": "claude-config-markdown"
+      }
+    },
+    {
       "name": "claude-code-config-lsp",
       "command": "claude-code-config-lsp",
-      "args": ["serve", "--stdio"],
+      "args": [
+        "serve",
+        "--stdio"
+      ],
       "extensionToLanguage": {
-        ".json": "claude-code-config",
-        ".md": "claude-code-config"
+        ".json": "claude-config-json",
+        ".md": "claude-config-markdown"
       },
       "startupTimeout": 5000
     }

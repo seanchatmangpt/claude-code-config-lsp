@@ -4,7 +4,6 @@
 //! CANDIDATE: transcript required for ADMITTED
 //! To promote: attach receipt triple in schema/domain.ttl, then `ggen sync`
 
-
 use serde::Serialize;
 
 #[cfg(feature = "bcinr")]
@@ -85,7 +84,9 @@ fn analyze_pattern_bcinr(
         let input_bytes = input.as_bytes();
         let mut pos = 0;
 
-        while let Some(offset) = swar_str::find_first_byte_in_slice(&input_bytes[pos..], target_byte) {
+        while let Some(offset) =
+            swar_str::find_first_byte_in_slice(&input_bytes[pos..], target_byte)
+        {
             let abs = pos + offset;
             findings.push(RawFinding {
                 code: code.to_string(),
@@ -195,6 +196,477 @@ impl ReplayableAnalyzer for JsonAnalyzer {
 }
 
 
+// ── Tree-sitter span helpers ─────────────────────────────────────────────────
+// The serde_json::Value-based validators below have no offset information, so
+// each finding's span is recovered by re-locating the offending key node in a
+// tree-sitter-json parse tree and reporting its byte offsets. backend.rs's
+// span_to_range converts those byte offsets to UTF-16-aware LSP positions.
+
+/// Locate the byte span of the JSON key node reached by walking `path` from
+/// the document root. Path segments are object keys (`"model"`) or
+/// zero-based array indices (`"0"`); the returned span covers the KEY node of
+/// the final key segment, e.g. for `["model"]` the span of `"model"` itself
+/// including quotes. Duplicate keys: the LAST match wins, mirroring
+/// serde_json's duplicate-key semantics. `None` if the document does not
+/// parse or any path segment is missing.
+pub fn ts_key_span(content: &str, path: &[&str]) -> Option<(usize, usize)> {
+    let last = path.len().checked_sub(1)?;
+    let tree = ts_parse(content)?;
+    let mut node = ts_root_value(tree.root_node())?;
+    for (i, seg) in path.iter().enumerate() {
+        if let Ok(idx) = seg.parse::<usize>() {
+            node = ts_array_element(node, idx)?;
+        } else {
+            let pair = ts_find_pair(node, content, seg)?;
+            if i == last {
+                let key = pair.child_by_field_name("key")?;
+                return Some((key.start_byte(), key.end_byte()));
+            }
+            node = pair.child_by_field_name("value")?;
+        }
+    }
+    None
+}
+
+/// Byte span of the document's root value node (the top-level `{`...`}`).
+/// Used by the missing-required-field rule (CCC-JSON-007), which has no key
+/// to point at — the offending location is the object itself.
+pub fn ts_root_span(content: &str) -> Option<(usize, usize)> {
+    let tree = ts_parse(content)?;
+    let node = ts_root_value(tree.root_node())?;
+    Some((node.start_byte(), node.end_byte()))
+}
+
+fn ts_parse(content: &str) -> Option<tree_sitter::Tree> {
+    let mut parser = tree_sitter::Parser::new();
+    // SLA-unblock (C7 lane disclosure): tree-sitter-json 0.23 exposes
+    // `LANGUAGE: LanguageFn`, not `language()`; `.into()` converts to `Language`.
+    parser
+        .set_language(&tree_sitter_json::LANGUAGE.into())
+        .ok()?;
+    parser.parse(content, None)
+}
+
+fn ts_root_value<'t>(root: tree_sitter::Node<'t>) -> Option<tree_sitter::Node<'t>> {
+    root.child(0)
+}
+
+/// The `pair` under object `node` whose key text equals `key` (last match).
+fn ts_find_pair<'t>(
+    node: tree_sitter::Node<'t>,
+    content: &str,
+    key: &str,
+) -> Option<tree_sitter::Node<'t>> {
+    let mut result = None;
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if child.kind() != "pair" {
+            continue;
+        }
+        if let Some(key_node) = child.child_by_field_name("key") {
+            let text = &content[key_node.start_byte()..key_node.end_byte()];
+            if text.trim_matches('"') == key {
+                result = Some(child);
+            }
+        }
+    }
+    result
+}
+
+/// The `idx`-th element of array `node` (named children, comments skipped).
+fn ts_array_element<'t>(node: tree_sitter::Node<'t>, idx: usize) -> Option<tree_sitter::Node<'t>> {
+    // SLA-unblock (C7 lane disclosure): `cursor` must outlive the iterator;
+    // bind the element first, then let cursor drop at end of scope.
+    let mut cursor = node.walk();
+    let element = node
+        .children(&mut cursor)
+        .filter(|c| c.is_named() && c.kind() != "comment")
+        .nth(idx);
+    element
+}
+
+// ── Hand-coded: settings.json validation ─────────────────────────────────────
+// Source: Claude Code settings.json schema — detect deprecated/wrong key names
+
+/// Pattern-scan rules for settings.json key violations.
+pub fn settings_json_rules() -> Vec<Rule> {
+    vec![
+        // CCC-JSON-001: deprecated key names from older Claude Code versions
+        Rule::new(
+            "CCC-JSON-001",
+            vec![
+                "enabledMcpjsonServers".to_string(),
+                "disabledMcpjsonServers".to_string(),
+                "mcpJsonServers".to_string(),
+            ],
+            "Deprecated settings.json key — use mcpServers",
+        ),
+        // CCC-JSON-002: wrong casing for hook event keys in settings.json
+        Rule::new(
+            "CCC-JSON-002",
+            vec![
+                "hookEvents".to_string(),
+                "hook_events".to_string(),
+                "pre_tool_use".to_string(),
+                "post_tool_use".to_string(),
+            ],
+            "Wrong hook key format — use hooks.PreToolUse / hooks.PostToolUse",
+        ),
+    ]
+}
+
+/// Valid hook event names in the hooks object.
+pub const VALID_HOOK_EVENTS: &[&str] = &[
+    "PreToolUse",
+    "PostToolUse",
+    "PostToolUseFailure",
+    "Stop",
+    "StopFailure",
+    "SubagentStart",
+    "SubagentStop",
+    "Notification",
+    "SessionStart",
+    "SessionEnd",
+    "PreCompact",
+    "PostCompact",
+    "UserPromptSubmit",
+    "PermissionRequest",
+    "PermissionDenied",
+    "ConfigChange",
+    "CwdChanged",
+    "FileChanged",
+    "InstructionsLoaded",
+    "MessageDisplay",
+    "TeammateIdle",
+    "TaskCompleted",
+    "TaskCreated",
+    "Setup",
+    "Elicitation",
+    "ElicitationResult",
+];
+
+/// Valid hook entry `type` values.
+pub const VALID_HOOK_TYPES: &[&str] = &["command", "prompt", "agent", "http", "mcp_tool"];
+
+/// Valid `worktree.baseRef` values.
+pub const VALID_WORKTREE_BASE_REFS: &[&str] = &["fresh", "head"];
+
+/// Valid per-skill modes for `skillOverrides`. Note: `skillOverrides` itself is a
+/// record mapping skill name → one of these modes, NOT a bare string.
+pub const VALID_SKILL_OVERRIDES: &[&str] = &["on", "off", "name-only", "user-invocable-only"];
+
+/// Valid `parentSettingsBehavior` values.
+pub const VALID_PARENT_SETTINGS_BEHAVIOR: &[&str] = &["first-wins", "merge"];
+
+/// Valid `mcpServers.<name>.type` values.
+pub const VALID_MCP_SERVER_TYPES: &[&str] = &["stdio", "sse"];
+
+/// Valid model values for settings.json `model` field.
+pub const VALID_MODELS: &[&str] = &[
+    "opus",
+    "sonnet",
+    "haiku",
+    "fable",
+    "claude-opus-5",
+    "claude-sonnet-5",
+    "claude-fable-5",
+    "claude-haiku-4-5-20251001",
+];
+
+/// Valid effortLevel values.
+pub const VALID_EFFORT_LEVELS: &[&str] = &["low", "medium", "high", "xhigh", "max"];
+
+/// Valid permissionMode / defaultMode values.
+pub const VALID_PERMISSION_MODES: &[&str] = &[
+    "default",
+    "manual",
+    "plan",
+    "acceptEdits",
+    "bypassPermissions",
+    "auto",
+];
+
+/// Structural validation of settings.json — checks enum fields and hook event names.
+/// Called alongside pattern rules in the backend's "json" branch.
+pub fn validate_settings_json_enums(content: &str) -> Vec<RawFinding> {
+    let mut findings = Vec::new();
+    let Ok(val) = serde_json::from_str::<serde_json::Value>(content) else {
+        return findings; // syntax errors are tree-sitter's domain
+    };
+    let Some(obj) = val.as_object() else {
+        return findings;
+    };
+    // Byte span of a key located by path through the tree-sitter parse tree.
+    // Falls back to the historical (0, 0) sentinel only if the tree-sitter
+    // parse somehow fails on JSON that serde_json accepted (defensive — has
+    // not been observed).
+    let key_span = |path: &[&str]| ts_key_span(content, path).unwrap_or((0, 0));
+
+    // CCC-JSON-004: invalid model value
+    if let Some(model) = obj.get("model").and_then(|v| v.as_str()) {
+        if !VALID_MODELS.contains(&model) {
+            findings.push(RawFinding {
+                code: "CCC-JSON-004".into(),
+                message: format!(
+                    "Invalid model '{model}' — valid: {}",
+                    VALID_MODELS.join(", ")
+                ),
+                span: key_span(&["model"]),
+            });
+        }
+    }
+
+    // CCC-JSON-005: invalid effortLevel value
+    if let Some(level) = obj.get("effortLevel").and_then(|v| v.as_str()) {
+        if !VALID_EFFORT_LEVELS.contains(&level) {
+            findings.push(RawFinding {
+                code: "CCC-JSON-005".into(),
+                message: format!(
+                    "Invalid effortLevel '{level}' — valid: {}",
+                    VALID_EFFORT_LEVELS.join(", ")
+                ),
+                span: key_span(&["effortLevel"]),
+            });
+        }
+    }
+
+    // CCC-JSON-006: invalid permissionMode / defaultMode in permissions object
+    let check_mode = |mode: &str, span: (usize, usize), findings: &mut Vec<RawFinding>| {
+        if !VALID_PERMISSION_MODES.contains(&mode) {
+            findings.push(RawFinding {
+                code: "CCC-JSON-006".into(),
+                message: format!(
+                    "Invalid permissionMode '{mode}' — valid: {}",
+                    VALID_PERMISSION_MODES.join(", ")
+                ),
+                span,
+            });
+        }
+    };
+    if let Some(mode) = obj.get("permissionMode").and_then(|v| v.as_str()) {
+        check_mode(mode, key_span(&["permissionMode"]), &mut findings);
+    }
+    if let Some(perms) = obj.get("permissions").and_then(|v| v.as_object()) {
+        if let Some(mode) = perms.get("defaultMode").and_then(|v| v.as_str()) {
+            check_mode(
+                mode,
+                key_span(&["permissions", "defaultMode"]),
+                &mut findings,
+            );
+        }
+    }
+
+    // CCC-HOOK-001 (structural): hooks object keys must be valid event names
+    if let Some(hooks) = obj.get("hooks").and_then(|v| v.as_object()) {
+        for (key, entries) in hooks.iter() {
+            if !VALID_HOOK_EVENTS.contains(&key.as_str()) {
+                findings.push(RawFinding {
+                    code: "CCC-HOOK-001".into(),
+                    message: format!(
+                        "Invalid hook event '{key}' — valid: {}",
+                        VALID_HOOK_EVENTS.join(", ")
+                    ),
+                    span: key_span(&["hooks", key.as_str()]),
+                });
+            }
+            // CCC-HOOK-004: each hook entry's `type` must be a valid enum value
+            if let Some(matchers) = entries.as_array() {
+                for (matcher_idx, matcher) in matchers.iter().enumerate() {
+                    if let Some(hook_list) = matcher.get("hooks").and_then(|v| v.as_array()) {
+                        for (hook_list_idx, hook) in hook_list.iter().enumerate() {
+                            if let Some(t) = hook.get("type").and_then(|v| v.as_str()) {
+                                if !VALID_HOOK_TYPES.contains(&t) {
+                                    findings.push(RawFinding {
+                                        code: "CCC-HOOK-004".into(),
+                                        message: format!(
+                                            "Invalid hook type '{t}' — valid: {}",
+                                            VALID_HOOK_TYPES.join(", ")
+                                        ),
+                                        span: key_span(&[
+                                            "hooks",
+                                            key.as_str(),
+                                            &matcher_idx.to_string(),
+                                            "hooks",
+                                            &hook_list_idx.to_string(),
+                                            "type",
+                                        ]),
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // CCC-JSON-008: worktree.baseRef enum
+    if let Some(worktree) = obj.get("worktree").and_then(|v| v.as_object()) {
+        if let Some(base_ref) = worktree.get("baseRef").and_then(|v| v.as_str()) {
+            if !VALID_WORKTREE_BASE_REFS.contains(&base_ref) {
+                findings.push(RawFinding {
+                    code: "CCC-JSON-008".into(),
+                    message: format!(
+                        "Invalid worktree.baseRef '{base_ref}' — valid: {}",
+                        VALID_WORKTREE_BASE_REFS.join(", ")
+                    ),
+                    span: key_span(&["worktree", "baseRef"]),
+                });
+            }
+        }
+    }
+
+    // CCC-JSON-009: skillOverrides is a record mapping skill name → override mode
+    match obj.get("skillOverrides") {
+        None => {}
+        Some(serde_json::Value::Object(overrides)) => {
+            for (skill, mode) in overrides {
+                match mode.as_str() {
+                    Some(m) if VALID_SKILL_OVERRIDES.contains(&m) => {}
+                    Some(m) => findings.push(RawFinding {
+                        code: "CCC-JSON-009".into(),
+                        message: format!(
+                            "skillOverrides.{skill}: invalid mode '{m}' — valid: {}",
+                            VALID_SKILL_OVERRIDES.join(", ")
+                        ),
+                        span: key_span(&["skillOverrides", skill.as_str()]),
+                    }),
+                    None => findings.push(RawFinding {
+                        code: "CCC-JSON-009".into(),
+                        message: format!(
+                            "skillOverrides.{skill}: mode must be a string — valid: {}",
+                            VALID_SKILL_OVERRIDES.join(", ")
+                        ),
+                        span: key_span(&["skillOverrides", skill.as_str()]),
+                    }),
+                }
+            }
+        }
+        Some(_) => findings.push(RawFinding {
+            code: "CCC-JSON-009".into(),
+            message: format!(
+                "skillOverrides must be a record mapping skill name → mode ({}), not a scalar",
+                VALID_SKILL_OVERRIDES.join(", ")
+            ),
+            span: key_span(&["skillOverrides"]),
+        }),
+    }
+
+    // CCC-JSON-010: parentSettingsBehavior enum
+    if let Some(v) = obj.get("parentSettingsBehavior").and_then(|v| v.as_str()) {
+        if !VALID_PARENT_SETTINGS_BEHAVIOR.contains(&v) {
+            findings.push(RawFinding {
+                code: "CCC-JSON-010".into(),
+                message: format!(
+                    "Invalid parentSettingsBehavior '{v}' — valid: {}",
+                    VALID_PARENT_SETTINGS_BEHAVIOR.join(", ")
+                ),
+                span: key_span(&["parentSettingsBehavior"]),
+            });
+        }
+    }
+
+    // CCC-JSON-011: mcpServers.<name>.type enum
+    if let Some(servers) = obj.get("mcpServers").and_then(|v| v.as_object()) {
+        for (name, server) in servers {
+            if let Some(t) = server.get("type").and_then(|v| v.as_str()) {
+                if !VALID_MCP_SERVER_TYPES.contains(&t) {
+                    findings.push(RawFinding {
+                        code: "CCC-JSON-011".into(),
+                        message: format!(
+                            "mcpServers.{name}: invalid type '{t}' — valid: {}",
+                            VALID_MCP_SERVER_TYPES.join(", ")
+                        ),
+                        span: key_span(&["mcpServers", name.as_str(), "type"]),
+                    });
+                }
+            }
+        }
+    }
+
+    // CCC-JSON-012: cleanupPeriodDays must not be 0 (silently disables persistence)
+    if let Some(n) = obj.get("cleanupPeriodDays").and_then(|v| v.as_i64()) {
+        if n == 0 {
+            findings.push(RawFinding {
+                code: "CCC-JSON-012".into(),
+                message: "cleanupPeriodDays: 0 silently disables transcript persistence".into(),
+                span: key_span(&["cleanupPeriodDays"]),
+            });
+        }
+    }
+
+    // CCC-JSON-003: generic invalid-enum check for enum-valued settings fields
+    // that carry NO field-specific code (model/effortLevel/permissionMode/
+    // worktree.baseRef/skillOverrides/parentSettingsBehavior/mcpServers.*.type
+    // are validated above under their own codes). Fields checked here come
+    // from the generated schema's enum list: tui, editorMode,
+    // crossSessionInbound, statusLine.type.
+    for (field, path, valid) in GENERIC_ENUM_FIELDS {
+        if let Some(v) = obj.get(path[0]) {
+            let v = if path.len() > 1 {
+                v.get(path[1]).unwrap_or(&serde_json::Value::Null)
+            } else {
+                v
+            };
+            if let Some(s) = v.as_str() {
+                if !valid.contains(&s) {
+                    findings.push(RawFinding {
+                        code: "CCC-JSON-003".into(),
+                        message: format!(
+                            "Invalid enum value for field '{field}': '{s}' — valid: {}",
+                            valid.join(", ")
+                        ),
+                        span: key_span(path),
+                    });
+                }
+            }
+        }
+    }
+
+    findings
+}
+
+/// Enum-valued settings.json fields WITHOUT a dedicated diagnostic code
+/// (field: tree-sitter path, allowed values — from schema.rs's enum list).
+pub const GENERIC_ENUM_FIELDS: &[(&str, &[&str], &[&str])] = &[
+    ("tui", &["tui"], &["fullscreen"]),
+    ("editorMode", &["editorMode"], &["normal", "vim"]),
+    ("crossSessionInbound", &["crossSessionInbound"], &["accept"]),
+    ("statusLine.type", &["statusLine", "type"], &["command"]),
+];
+
+/// Structural validation of plugin.json — CCC-JSON-007: missing $schema field.
+pub fn validate_plugin_json(content: &str) -> Vec<RawFinding> {
+    let mut findings = Vec::new();
+    let Ok(val) = serde_json::from_str::<serde_json::Value>(content) else {
+        return findings;
+    };
+    let Some(obj) = val.as_object() else {
+        return findings;
+    };
+    if !obj.contains_key("$schema") {
+        findings.push(RawFinding {
+            code: "CCC-JSON-007".into(),
+            message: "plugin.json missing required '$schema' field".into(),
+            span: ts_root_span(content).unwrap_or((0, 0)),
+        });
+    }
+
+    // CCC-JSON-013: `themes`/`monitors` must be nested under `experimental`,
+    // not declared top-level (deprecated per Claude Code 2.1.129+).
+    for key in ["themes", "monitors"] {
+        if obj.contains_key(key) {
+            findings.push(RawFinding {
+                code: "CCC-JSON-013".into(),
+                message: format!("Top-level '{key}' is deprecated — declare it under \"experimental\": {{ \"{key}\": ... }} instead"),
+                span: ts_key_span(content, &[key]).unwrap_or((0, 0)),
+            });
+        }
+    }
+
+    findings
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -222,300 +694,470 @@ mod tests {
         assert!(findings[0].span.0 < findings[1].span.0);
     }
 
-    #[test] fn deprecated_key_detected() { let i = r#"{"enabledMcpjsonServers": []}"#; assert!(JsonAnalyzer::new().analyze(i).iter().any(|f| f.code == "CCC-JSON-001")); }
-    #[test] fn camel_case_hooks_detected() { let i = r#"{"hookEvents": {}}"#; assert!(JsonAnalyzer::new().analyze(i).iter().any(|f| f.code == "CCC-JSON-002")); }
-    #[test] fn valid_json_keys_clean() { let i = r#"{"hooks": {}, "mcpServers": {}}"#; assert!(JsonAnalyzer::new().analyze(i).is_empty()); }
+    #[test]
+    fn deprecated_key_detected() {
+        let i = r#"{"enabledMcpjsonServers": []}"#;
+        assert!(JsonAnalyzer::new()
+            .analyze(i)
+            .iter()
+            .any(|f| f.code == "CCC-JSON-001"));
+    }
+    #[test]
+    fn camel_case_hooks_detected() {
+        let i = r#"{"hookEvents": {}}"#;
+        assert!(JsonAnalyzer::new()
+            .analyze(i)
+            .iter()
+            .any(|f| f.code == "CCC-JSON-002"));
+    }
+    #[test]
+    fn valid_json_keys_clean() {
+        let i = r#"{"hooks": {}, "mcpServers": {}}"#;
+        assert!(JsonAnalyzer::new().analyze(i).is_empty());
+    }
 
-    #[test] fn invalid_model_fires_ccc_json_004() { let i = r#"{"model": "gpt-4"}"#; assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-004")); }
-    #[test] fn valid_model_sonnet_clean() { let i = r#"{"model": "sonnet"}"#; assert!(validate_settings_json_enums(i).is_empty()); }
-    #[test] fn valid_model_full_id_clean() { let i = r#"{"model": "claude-sonnet-5"}"#; assert!(validate_settings_json_enums(i).is_empty()); }
-    #[test] fn retired_model_full_id_fires_ccc_json_004() { let i = r#"{"model": "claude-sonnet-4-6"}"#; assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-004")); }
-    #[test] fn invalid_effort_fires_ccc_json_005() { let i = r#"{"effortLevel": "extreme"}"#; assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-005")); }
-    #[test] fn valid_effort_max_clean() { let i = r#"{"effortLevel": "max"}"#; assert!(validate_settings_json_enums(i).is_empty()); }
-    #[test] fn invalid_permission_mode_fires_ccc_json_006() { let i = r#"{"permissionMode": "unsafe"}"#; assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-006")); }
-    #[test] fn valid_permission_mode_auto_clean() { let i = r#"{"permissionMode": "auto"}"#; assert!(validate_settings_json_enums(i).is_empty()); }
-    #[test] fn invalid_hook_event_fires_ccc_hook_001() { let i = r#"{"hooks": {"on_tool_use": []}}"#; assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-HOOK-001")); }
-    #[test] fn valid_hook_event_pre_tool_use_clean() { let i = r#"{"hooks": {"PreToolUse": []}}"#; assert!(!validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-HOOK-001")); }
-    #[test] fn session_start_hook_is_valid() { let i = r#"{"hooks": {"SessionStart": []}}"#; assert!(!validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-HOOK-001")); }
-    #[test] fn plugin_missing_schema_fires_ccc_json_007() { let i = r#"{"name": "my-plugin"}"#; assert!(validate_plugin_json(i).iter().any(|f| f.code == "CCC-JSON-007")); }
-    #[test] fn plugin_with_schema_clean() { let i = r#"{"$schema": "https://example.com/schema.json", "name": "x"}"#; assert!(validate_plugin_json(i).is_empty()); }
-    #[test] fn invalid_json_returns_empty() { assert!(validate_settings_json_enums("not json").is_empty()); }
+    #[test]
+    fn invalid_model_fires_ccc_json_004() {
+        let i = r#"{"model": "gpt-4"}"#;
+        assert!(validate_settings_json_enums(i)
+            .iter()
+            .any(|f| f.code == "CCC-JSON-004"));
+    }
+    #[test]
+    fn valid_model_sonnet_clean() {
+        let i = r#"{"model": "sonnet"}"#;
+        assert!(validate_settings_json_enums(i).is_empty());
+    }
+    #[test]
+    fn valid_model_full_id_clean() {
+        let i = r#"{"model": "claude-sonnet-5"}"#;
+        assert!(validate_settings_json_enums(i).is_empty());
+    }
+    #[test]
+    fn retired_model_full_id_fires_ccc_json_004() {
+        let i = r#"{"model": "claude-sonnet-4-6"}"#;
+        assert!(validate_settings_json_enums(i)
+            .iter()
+            .any(|f| f.code == "CCC-JSON-004"));
+    }
+    #[test]
+    fn invalid_effort_fires_ccc_json_005() {
+        let i = r#"{"effortLevel": "extreme"}"#;
+        assert!(validate_settings_json_enums(i)
+            .iter()
+            .any(|f| f.code == "CCC-JSON-005"));
+    }
+    #[test]
+    fn valid_effort_max_clean() {
+        let i = r#"{"effortLevel": "max"}"#;
+        assert!(validate_settings_json_enums(i).is_empty());
+    }
+    #[test]
+    fn invalid_permission_mode_fires_ccc_json_006() {
+        let i = r#"{"permissionMode": "unsafe"}"#;
+        assert!(validate_settings_json_enums(i)
+            .iter()
+            .any(|f| f.code == "CCC-JSON-006"));
+    }
+    #[test]
+    fn valid_permission_mode_auto_clean() {
+        let i = r#"{"permissionMode": "auto"}"#;
+        assert!(validate_settings_json_enums(i).is_empty());
+    }
+    #[test]
+    fn invalid_hook_event_fires_ccc_hook_001() {
+        let i = r#"{"hooks": {"on_tool_use": []}}"#;
+        assert!(validate_settings_json_enums(i)
+            .iter()
+            .any(|f| f.code == "CCC-HOOK-001"));
+    }
+    #[test]
+    fn valid_hook_event_pre_tool_use_clean() {
+        let i = r#"{"hooks": {"PreToolUse": []}}"#;
+        assert!(!validate_settings_json_enums(i)
+            .iter()
+            .any(|f| f.code == "CCC-HOOK-001"));
+    }
+    #[test]
+    fn session_start_hook_is_valid() {
+        let i = r#"{"hooks": {"SessionStart": []}}"#;
+        assert!(!validate_settings_json_enums(i)
+            .iter()
+            .any(|f| f.code == "CCC-HOOK-001"));
+    }
+    #[test]
+    fn plugin_missing_schema_fires_ccc_json_007() {
+        let i = r#"{"name": "my-plugin"}"#;
+        assert!(validate_plugin_json(i)
+            .iter()
+            .any(|f| f.code == "CCC-JSON-007"));
+    }
+    #[test]
+    fn plugin_with_schema_clean() {
+        let i = r#"{"$schema": "https://example.com/schema.json", "name": "x"}"#;
+        assert!(validate_plugin_json(i).is_empty());
+    }
+    #[test]
+    fn invalid_json_returns_empty() {
+        assert!(validate_settings_json_enums("not json").is_empty());
+    }
+
+    // CCC-JSON-003: generic enum catch-all (fields without a field-specific code)
+    #[test]
+    fn invalid_editor_mode_fires_ccc_json_003() {
+        let i = r#"{"editorMode": "emacs"}"#;
+        assert!(validate_settings_json_enums(i)
+            .iter()
+            .any(|f| f.code == "CCC-JSON-003"));
+    }
+    #[test]
+    fn valid_editor_mode_vim_clean() {
+        let i = r#"{"editorMode": "vim"}"#;
+        assert!(!validate_settings_json_enums(i)
+            .iter()
+            .any(|f| f.code == "CCC-JSON-003"));
+    }
+    #[test]
+    fn invalid_tui_fires_ccc_json_003() {
+        let i = r#"{"tui": "split"}"#;
+        assert!(validate_settings_json_enums(i)
+            .iter()
+            .any(|f| f.code == "CCC-JSON-003"));
+    }
+    #[test]
+    fn valid_tui_fullscreen_clean() {
+        let i = r#"{"tui": "fullscreen"}"#;
+        assert!(!validate_settings_json_enums(i)
+            .iter()
+            .any(|f| f.code == "CCC-JSON-003"));
+    }
+    #[test]
+    fn invalid_status_line_type_fires_ccc_json_003() {
+        let i = r#"{"statusLine": {"type": "script"}}"#;
+        assert!(validate_settings_json_enums(i)
+            .iter()
+            .any(|f| f.code == "CCC-JSON-003"));
+    }
+    #[test]
+    fn valid_status_line_command_clean() {
+        let i = r#"{"statusLine": {"type": "command"}}"#;
+        assert!(!validate_settings_json_enums(i)
+            .iter()
+            .any(|f| f.code == "CCC-JSON-003"));
+    }
+    #[test]
+    fn invalid_cross_session_inbound_fires_ccc_json_003() {
+        let i = r#"{"crossSessionInbound": "reject"}"#;
+        assert!(validate_settings_json_enums(i)
+            .iter()
+            .any(|f| f.code == "CCC-JSON-003"));
+    }
+    #[test]
+    fn field_specific_codes_still_win_over_generic() {
+        // model keeps its own code (CCC-JSON-004); the generic rule must not double-fire
+        let i = r#"{"model": "gpt-4", "editorMode": "emacs"}"#;
+        let fs = validate_settings_json_enums(i);
+        assert!(fs.iter().any(|f| f.code == "CCC-JSON-004"));
+        assert_eq!(fs.iter().filter(|f| f.code == "CCC-JSON-003").count(), 1);
+    }
+    #[test]
+    fn span_ccc_json_003_points_at_nested_field_key() {
+        assert_span(
+            "CCC-JSON-003",
+            r#"{"statusLine": {"type": "script"}}"#,
+            "\"type\"",
+        );
+    }
+    #[test]
+    fn span_ccc_json_003_points_at_top_level_key() {
+        assert_span(
+            "CCC-JSON-003",
+            "{\n  \"editorMode\": \"emacs\"\n}",
+            "\"editorMode\"",
+        );
+    }
 
     // Phase A: expanded hook events / new enum fields
-    #[test] fn setup_hook_event_is_valid() { let i = r#"{"hooks": {"Setup": []}}"#; assert!(!validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-HOOK-001")); }
-    #[test] fn teammate_idle_hook_event_is_valid() { let i = r#"{"hooks": {"TeammateIdle": []}}"#; assert!(!validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-HOOK-001")); }
-    #[test] fn invalid_hook_type_fires_ccc_hook_004() {
+    #[test]
+    fn setup_hook_event_is_valid() {
+        let i = r#"{"hooks": {"Setup": []}}"#;
+        assert!(!validate_settings_json_enums(i)
+            .iter()
+            .any(|f| f.code == "CCC-HOOK-001"));
+    }
+    #[test]
+    fn teammate_idle_hook_event_is_valid() {
+        let i = r#"{"hooks": {"TeammateIdle": []}}"#;
+        assert!(!validate_settings_json_enums(i)
+            .iter()
+            .any(|f| f.code == "CCC-HOOK-001"));
+    }
+    #[test]
+    fn invalid_hook_type_fires_ccc_hook_004() {
         let i = r#"{"hooks": {"PreToolUse": [{"hooks": [{"type": "bogus", "command": "x"}]}]}}"#;
-        assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-HOOK-004"));
+        assert!(validate_settings_json_enums(i)
+            .iter()
+            .any(|f| f.code == "CCC-HOOK-004"));
     }
-    #[test] fn valid_hook_type_command_clean() {
+    #[test]
+    fn valid_hook_type_command_clean() {
         let i = r#"{"hooks": {"PreToolUse": [{"hooks": [{"type": "command", "command": "x"}]}]}}"#;
-        assert!(!validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-HOOK-004"));
+        assert!(!validate_settings_json_enums(i)
+            .iter()
+            .any(|f| f.code == "CCC-HOOK-004"));
     }
-    #[test] fn invalid_worktree_base_ref_fires_ccc_json_008() { let i = r#"{"worktree": {"baseRef": "bogus"}}"#; assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-008")); }
-    #[test] fn valid_worktree_base_ref_head_clean() { let i = r#"{"worktree": {"baseRef": "head"}}"#; assert!(!validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-008")); }
-    #[test] fn invalid_skill_overrides_fires_ccc_json_009() { let i = r#"{"skillOverrides": "bogus"}"#; assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-009")); }
-    #[test] fn skill_overrides_string_off_fires_ccc_json_009() { let i = r#"{"skillOverrides": "off"}"#; assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-009")); }
-    #[test] fn skill_overrides_bad_mode_fires_ccc_json_009() { let i = r#"{"skillOverrides": {"foo": "bogus"}}"#; assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-009")); }
-    #[test] fn skill_overrides_valid_record_clean() { let i = r#"{"skillOverrides": {"foo": "off", "bar": "name-only", "baz": "user-invocable-only", "qux": "on"}}"#; assert!(!validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-009")); }
-    #[test] fn invalid_parent_settings_behavior_fires_ccc_json_010() { let i = r#"{"parentSettingsBehavior": "bogus"}"#; assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-010")); }
-    #[test] fn invalid_mcp_server_type_fires_ccc_json_011() { let i = r#"{"mcpServers": {"foo": {"type": "bogus"}}}"#; assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-011")); }
-    #[test] fn valid_mcp_server_type_sse_clean() { let i = r#"{"mcpServers": {"foo": {"type": "sse"}}}"#; assert!(!validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-011")); }
-    #[test] fn cleanup_period_days_zero_fires_ccc_json_012() { let i = r#"{"cleanupPeriodDays": 0}"#; assert!(validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-012")); }
-    #[test] fn cleanup_period_days_thirty_clean() { let i = r#"{"cleanupPeriodDays": 30}"#; assert!(!validate_settings_json_enums(i).iter().any(|f| f.code == "CCC-JSON-012")); }
+    #[test]
+    fn invalid_worktree_base_ref_fires_ccc_json_008() {
+        let i = r#"{"worktree": {"baseRef": "bogus"}}"#;
+        assert!(validate_settings_json_enums(i)
+            .iter()
+            .any(|f| f.code == "CCC-JSON-008"));
+    }
+    #[test]
+    fn valid_worktree_base_ref_head_clean() {
+        let i = r#"{"worktree": {"baseRef": "head"}}"#;
+        assert!(!validate_settings_json_enums(i)
+            .iter()
+            .any(|f| f.code == "CCC-JSON-008"));
+    }
+    #[test]
+    fn invalid_skill_overrides_fires_ccc_json_009() {
+        let i = r#"{"skillOverrides": "bogus"}"#;
+        assert!(validate_settings_json_enums(i)
+            .iter()
+            .any(|f| f.code == "CCC-JSON-009"));
+    }
+    #[test]
+    fn skill_overrides_string_off_fires_ccc_json_009() {
+        let i = r#"{"skillOverrides": "off"}"#;
+        assert!(validate_settings_json_enums(i)
+            .iter()
+            .any(|f| f.code == "CCC-JSON-009"));
+    }
+    #[test]
+    fn skill_overrides_bad_mode_fires_ccc_json_009() {
+        let i = r#"{"skillOverrides": {"foo": "bogus"}}"#;
+        assert!(validate_settings_json_enums(i)
+            .iter()
+            .any(|f| f.code == "CCC-JSON-009"));
+    }
+    #[test]
+    fn skill_overrides_valid_record_clean() {
+        let i = r#"{"skillOverrides": {"foo": "off", "bar": "name-only", "baz": "user-invocable-only", "qux": "on"}}"#;
+        assert!(!validate_settings_json_enums(i)
+            .iter()
+            .any(|f| f.code == "CCC-JSON-009"));
+    }
+    #[test]
+    fn invalid_parent_settings_behavior_fires_ccc_json_010() {
+        let i = r#"{"parentSettingsBehavior": "bogus"}"#;
+        assert!(validate_settings_json_enums(i)
+            .iter()
+            .any(|f| f.code == "CCC-JSON-010"));
+    }
+    #[test]
+    fn invalid_mcp_server_type_fires_ccc_json_011() {
+        let i = r#"{"mcpServers": {"foo": {"type": "bogus"}}}"#;
+        assert!(validate_settings_json_enums(i)
+            .iter()
+            .any(|f| f.code == "CCC-JSON-011"));
+    }
+    #[test]
+    fn valid_mcp_server_type_sse_clean() {
+        let i = r#"{"mcpServers": {"foo": {"type": "sse"}}}"#;
+        assert!(!validate_settings_json_enums(i)
+            .iter()
+            .any(|f| f.code == "CCC-JSON-011"));
+    }
+    #[test]
+    fn cleanup_period_days_zero_fires_ccc_json_012() {
+        let i = r#"{"cleanupPeriodDays": 0}"#;
+        assert!(validate_settings_json_enums(i)
+            .iter()
+            .any(|f| f.code == "CCC-JSON-012"));
+    }
+    #[test]
+    fn cleanup_period_days_thirty_clean() {
+        let i = r#"{"cleanupPeriodDays": 30}"#;
+        assert!(!validate_settings_json_enums(i)
+            .iter()
+            .any(|f| f.code == "CCC-JSON-012"));
+    }
 
     // Phase D: plugin.json experimental-nesting check
-    #[test] fn top_level_themes_fires_ccc_json_013() { let i = r#"{"$schema": "x", "themes": {}}"#; assert!(validate_plugin_json(i).iter().any(|f| f.code == "CCC-JSON-013")); }
-    #[test] fn top_level_monitors_fires_ccc_json_013() { let i = r#"{"$schema": "x", "monitors": {}}"#; assert!(validate_plugin_json(i).iter().any(|f| f.code == "CCC-JSON-013")); }
-    #[test] fn experimental_nested_themes_clean() { let i = r#"{"$schema": "x", "experimental": {"themes": {}}}"#; assert!(!validate_plugin_json(i).iter().any(|f| f.code == "CCC-JSON-013")); }
-}
+    #[test]
+    fn top_level_themes_fires_ccc_json_013() {
+        let i = r#"{"$schema": "x", "themes": {}}"#;
+        assert!(validate_plugin_json(i)
+            .iter()
+            .any(|f| f.code == "CCC-JSON-013"));
+    }
+    #[test]
+    fn top_level_monitors_fires_ccc_json_013() {
+        let i = r#"{"$schema": "x", "monitors": {}}"#;
+        assert!(validate_plugin_json(i)
+            .iter()
+            .any(|f| f.code == "CCC-JSON-013"));
+    }
+    #[test]
+    fn experimental_nested_themes_clean() {
+        let i = r#"{"$schema": "x", "experimental": {"themes": {}}}"#;
+        assert!(!validate_plugin_json(i)
+            .iter()
+            .any(|f| f.code == "CCC-JSON-013"));
+    }
 
-// ── Hand-coded: settings.json validation ─────────────────────────────────────
-// Source: Claude Code settings.json schema — detect deprecated/wrong key names
+    // ── Real spans: every rule that used to emit (0, 0) must point at the
+    // offending key's byte offsets in the source text.
+    fn span_at(input: &str, needle: &str) -> (usize, usize) {
+        let start = input.find(needle).expect("needle must exist in fixture");
+        (start, start + needle.len())
+    }
 
-/// Pattern-scan rules for settings.json key violations.
-pub fn settings_json_rules() -> Vec<Rule> {
-    vec![
-        // CCC-JSON-001: deprecated key names from older Claude Code versions
-        Rule::new("CCC-JSON-001", vec![
-            "enabledMcpjsonServers".to_string(),
-            "disabledMcpjsonServers".to_string(),
-            "mcpJsonServers".to_string(),
-        ], "Deprecated settings.json key — use mcpServers"),
-        // CCC-JSON-002: wrong casing for hook event keys in settings.json
-        Rule::new("CCC-JSON-002", vec![
-            "hookEvents".to_string(),
-            "hook_events".to_string(),
-            "pre_tool_use".to_string(),
-            "post_tool_use".to_string(),
-        ], "Wrong hook key format — use hooks.PreToolUse / hooks.PostToolUse"),
-    ]
-}
-
-/// Valid hook event names in the hooks object.
-const VALID_HOOK_EVENTS: &[&str] = &[
-    "PreToolUse", "PostToolUse", "PostToolUseFailure", "Stop", "StopFailure",
-    "SubagentStart", "SubagentStop", "Notification", "SessionStart", "SessionEnd",
-    "PreCompact", "PostCompact", "UserPromptSubmit", "PermissionRequest", "PermissionDenied",
-    "ConfigChange", "CwdChanged", "FileChanged", "InstructionsLoaded", "MessageDisplay",
-    "TeammateIdle", "TaskCompleted", "TaskCreated", "Setup", "Elicitation", "ElicitationResult",
-];
-
-/// Valid hook entry `type` values.
-const VALID_HOOK_TYPES: &[&str] = &["command", "prompt", "agent", "http", "mcp_tool"];
-
-/// Valid `worktree.baseRef` values.
-const VALID_WORKTREE_BASE_REFS: &[&str] = &["fresh", "head"];
-
-/// Valid per-skill modes for `skillOverrides`. Note: `skillOverrides` itself is a
-/// record mapping skill name → one of these modes, NOT a bare string.
-const VALID_SKILL_OVERRIDES: &[&str] = &["on", "off", "name-only", "user-invocable-only"];
-
-/// Valid `parentSettingsBehavior` values.
-const VALID_PARENT_SETTINGS_BEHAVIOR: &[&str] = &["first-wins", "merge"];
-
-/// Valid `mcpServers.<name>.type` values.
-const VALID_MCP_SERVER_TYPES: &[&str] = &["stdio", "sse"];
-
-/// Valid model values for settings.json `model` field.
-const VALID_MODELS: &[&str] = &[
-    "opus", "sonnet", "haiku", "fable",
-    "claude-opus-5", "claude-sonnet-5", "claude-fable-5", "claude-haiku-4-5-20251001",
-];
-
-/// Valid effortLevel values.
-const VALID_EFFORT_LEVELS: &[&str] = &["low", "medium", "high", "xhigh", "max"];
-
-/// Valid permissionMode / defaultMode values.
-const VALID_PERMISSION_MODES: &[&str] = &[
-    "default", "manual", "plan", "acceptEdits", "bypassPermissions", "auto",
-];
-
-/// Structural validation of settings.json — checks enum fields and hook event names.
-/// Called alongside pattern rules in the backend's "json" branch.
-pub fn validate_settings_json_enums(content: &str) -> Vec<RawFinding> {
-    let mut findings = Vec::new();
-    let Ok(val) = serde_json::from_str::<serde_json::Value>(content) else {
-        return findings; // syntax errors are tree-sitter's domain
-    };
-    let Some(obj) = val.as_object() else { return findings };
-
-    // CCC-JSON-004: invalid model value
-    if let Some(model) = obj.get("model").and_then(|v| v.as_str()) {
-        if !VALID_MODELS.contains(&model) {
-            findings.push(RawFinding {
-                code: "CCC-JSON-004".into(),
-                message: format!("Invalid model '{model}' — valid: {}", VALID_MODELS.join(", ")),
-                span: (0, 0),
-            });
+    fn assert_span(code: &str, input: &str, needle: &str) {
+        let expected = span_at(input, needle);
+        let findings = validate_settings_json_enums(input)
+            .into_iter()
+            .chain(validate_plugin_json(input))
+            .filter(|f| f.code == code)
+            .collect::<Vec<_>>();
+        assert!(!findings.is_empty(), "{code} must fire on fixture: {input}");
+        for f in findings {
+            assert_eq!(
+                f.span, expected,
+                "{code} span must point at `{needle}` in: {input}"
+            );
         }
     }
 
-    // CCC-JSON-005: invalid effortLevel value
-    if let Some(level) = obj.get("effortLevel").and_then(|v| v.as_str()) {
-        if !VALID_EFFORT_LEVELS.contains(&level) {
-            findings.push(RawFinding {
-                code: "CCC-JSON-005".into(),
-                message: format!("Invalid effortLevel '{level}' — valid: {}", VALID_EFFORT_LEVELS.join(", ")),
-                span: (0, 0),
-            });
-        }
+    #[test]
+    fn span_ccc_json_004_points_at_model_key() {
+        let i = "{\n  \"model\": \"gpt-4\"\n}";
+        assert_span("CCC-JSON-004", i, "\"model\"");
+    }
+    #[test]
+    fn span_ccc_json_005_points_at_effort_key() {
+        assert_span(
+            "CCC-JSON-005",
+            r#"{"effortLevel": "extreme"}"#,
+            "\"effortLevel\"",
+        );
+    }
+    #[test]
+    fn span_ccc_json_006_points_at_permission_mode_key() {
+        assert_span(
+            "CCC-JSON-006",
+            r#"{"permissionMode": "unsafe"}"#,
+            "\"permissionMode\"",
+        );
+    }
+    #[test]
+    fn span_ccc_json_006_points_at_nested_default_mode_key() {
+        assert_span(
+            "CCC-JSON-006",
+            r#"{"permissions": {"defaultMode": "unsafe"}}"#,
+            "\"defaultMode\"",
+        );
+    }
+    #[test]
+    fn span_ccc_hook_001_points_at_event_key() {
+        let i = "{\n  \"hooks\": {\n    \"on_tool_use\": []\n  }\n}";
+        assert_span("CCC-HOOK-001", i, "\"on_tool_use\"");
+    }
+    #[test]
+    fn span_ccc_hook_004_points_at_type_key() {
+        let i = r#"{"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "bogus", "command": "x"}]}]}}"#;
+        assert_span("CCC-HOOK-004", i, "\"type\"");
+    }
+    #[test]
+    fn span_ccc_json_008_points_at_base_ref_key() {
+        assert_span(
+            "CCC-JSON-008",
+            r#"{"worktree": {"baseRef": "bogus"}}"#,
+            "\"baseRef\"",
+        );
+    }
+    #[test]
+    fn span_ccc_json_009_points_at_skill_key() {
+        assert_span(
+            "CCC-JSON-009",
+            r#"{"skillOverrides": {"foo": "bogus"}}"#,
+            "\"foo\"",
+        );
+    }
+    #[test]
+    fn span_ccc_json_009_scalar_points_at_skill_overrides_key() {
+        assert_span(
+            "CCC-JSON-009",
+            r#"{"skillOverrides": "bogus"}"#,
+            "\"skillOverrides\"",
+        );
+    }
+    #[test]
+    fn span_ccc_json_010_points_at_parent_behavior_key() {
+        assert_span(
+            "CCC-JSON-010",
+            r#"{"parentSettingsBehavior": "bogus"}"#,
+            "\"parentSettingsBehavior\"",
+        );
+    }
+    #[test]
+    fn span_ccc_json_011_points_at_server_type_key() {
+        assert_span(
+            "CCC-JSON-011",
+            r#"{"mcpServers": {"foo": {"type": "bogus"}}}"#,
+            "\"type\"",
+        );
+    }
+    #[test]
+    fn span_ccc_json_012_points_at_cleanup_key() {
+        assert_span(
+            "CCC-JSON-012",
+            r#"{"cleanupPeriodDays": 0}"#,
+            "\"cleanupPeriodDays\"",
+        );
+    }
+    #[test]
+    fn span_ccc_json_007_points_at_root_object() {
+        let i = "\n  {\"name\": \"my-plugin\"}\n";
+        // No $schema key exists — the finding must anchor at the root object,
+        // covering the full `{`...`}`.
+        assert_eq!(
+            validate_plugin_json(i)[0].span,
+            (i.find('{').unwrap(), i.rfind('}').unwrap() + 1)
+        );
+    }
+    #[test]
+    fn span_ccc_json_013_points_at_deprecated_key() {
+        assert_span(
+            "CCC-JSON-013",
+            r#"{"$schema": "x", "themes": {}}"#,
+            "\"themes\"",
+        );
     }
 
-    // CCC-JSON-006: invalid permissionMode / defaultMode in permissions object
-    let check_mode = |mode: &str, findings: &mut Vec<RawFinding>| {
-        if !VALID_PERMISSION_MODES.contains(&mode) {
-            findings.push(RawFinding {
-                code: "CCC-JSON-006".into(),
-                message: format!("Invalid permissionMode '{mode}' — valid: {}", VALID_PERMISSION_MODES.join(", ")),
-                span: (0, 0),
-            });
-        }
-    };
-    if let Some(mode) = obj.get("permissionMode").and_then(|v| v.as_str()) {
-        check_mode(mode, &mut findings);
-    }
-    if let Some(perms) = obj.get("permissions").and_then(|v| v.as_object()) {
-        if let Some(mode) = perms.get("defaultMode").and_then(|v| v.as_str()) {
-            check_mode(mode, &mut findings);
-        }
-    }
-
-    // CCC-HOOK-001 (structural): hooks object keys must be valid event names
-    if let Some(hooks) = obj.get("hooks").and_then(|v| v.as_object()) {
-        for (key, entries) in hooks {
-            if !VALID_HOOK_EVENTS.contains(&key.as_str()) {
-                findings.push(RawFinding {
-                    code: "CCC-HOOK-001".into(),
-                    message: format!("Invalid hook event '{key}' — valid: {}", VALID_HOOK_EVENTS.join(", ")),
-                    span: (0, 0),
-                });
-            }
-            // CCC-HOOK-004: each hook entry's `type` must be a valid enum value
-            if let Some(matchers) = entries.as_array() {
-                for matcher in matchers {
-                    if let Some(hook_list) = matcher.get("hooks").and_then(|v| v.as_array()) {
-                        for hook in hook_list {
-                            if let Some(t) = hook.get("type").and_then(|v| v.as_str()) {
-                                if !VALID_HOOK_TYPES.contains(&t) {
-                                    findings.push(RawFinding {
-                                        code: "CCC-HOOK-004".into(),
-                                        message: format!("Invalid hook type '{t}' — valid: {}", VALID_HOOK_TYPES.join(", ")),
-                                        span: (0, 0),
-                                    });
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+    #[test]
+    fn ts_key_span_walks_nested_paths_and_arrays() {
+        let i = r#"{"a": {"b": [{ "c": 1 }, { "c": 2 }]}}"#;
+        let start = i.rfind("\"c\"").expect("second \"c\" exists");
+        assert_eq!(
+            ts_key_span(i, &["a", "b", "1", "c"]),
+            Some((start, start + 3))
+        );
+        // last duplicate key wins, mirroring serde_json
+        let d = r#"{"model": "x", "model": "y"}"#;
+        let dstart = d.rfind("\"model\"").expect("second model key exists");
+        assert_eq!(ts_key_span(d, &["model"]), Some((dstart, dstart + 7)));
+        // missing path → None
+        assert_eq!(ts_key_span(i, &["a", "zzz"]), None);
+        // array index out of bounds → None
+        assert_eq!(ts_key_span(i, &["a", "b", "9", "c"]), None);
     }
 
-    // CCC-JSON-008: worktree.baseRef enum
-    if let Some(worktree) = obj.get("worktree").and_then(|v| v.as_object()) {
-        if let Some(base_ref) = worktree.get("baseRef").and_then(|v| v.as_str()) {
-            if !VALID_WORKTREE_BASE_REFS.contains(&base_ref) {
-                findings.push(RawFinding {
-                    code: "CCC-JSON-008".into(),
-                    message: format!("Invalid worktree.baseRef '{base_ref}' — valid: {}", VALID_WORKTREE_BASE_REFS.join(", ")),
-                    span: (0, 0),
-                });
-            }
-        }
+    #[test]
+    fn ts_key_span_is_utf16_safe_via_byte_offsets() {
+        // multi-byte content before the key must not shift the byte offsets
+        let i = "{ \"ключ\": 1, \"model\": \"bad\" }";
+        assert_eq!(ts_key_span(i, &["model"]), Some(span_at(i, "\"model\"")));
     }
-
-    // CCC-JSON-009: skillOverrides is a record mapping skill name → override mode
-    match obj.get("skillOverrides") {
-        None => {}
-        Some(serde_json::Value::Object(overrides)) => {
-            for (skill, mode) in overrides {
-                match mode.as_str() {
-                    Some(m) if VALID_SKILL_OVERRIDES.contains(&m) => {}
-                    Some(m) => findings.push(RawFinding {
-                        code: "CCC-JSON-009".into(),
-                        message: format!("skillOverrides.{skill}: invalid mode '{m}' — valid: {}", VALID_SKILL_OVERRIDES.join(", ")),
-                        span: (0, 0),
-                    }),
-                    None => findings.push(RawFinding {
-                        code: "CCC-JSON-009".into(),
-                        message: format!("skillOverrides.{skill}: mode must be a string — valid: {}", VALID_SKILL_OVERRIDES.join(", ")),
-                        span: (0, 0),
-                    }),
-                }
-            }
-        }
-        Some(_) => findings.push(RawFinding {
-            code: "CCC-JSON-009".into(),
-            message: format!("skillOverrides must be a record mapping skill name → mode ({}), not a scalar", VALID_SKILL_OVERRIDES.join(", ")),
-            span: (0, 0),
-        }),
-    }
-
-    // CCC-JSON-010: parentSettingsBehavior enum
-    if let Some(v) = obj.get("parentSettingsBehavior").and_then(|v| v.as_str()) {
-        if !VALID_PARENT_SETTINGS_BEHAVIOR.contains(&v) {
-            findings.push(RawFinding {
-                code: "CCC-JSON-010".into(),
-                message: format!("Invalid parentSettingsBehavior '{v}' — valid: {}", VALID_PARENT_SETTINGS_BEHAVIOR.join(", ")),
-                span: (0, 0),
-            });
-        }
-    }
-
-    // CCC-JSON-011: mcpServers.<name>.type enum
-    if let Some(servers) = obj.get("mcpServers").and_then(|v| v.as_object()) {
-        for (name, server) in servers {
-            if let Some(t) = server.get("type").and_then(|v| v.as_str()) {
-                if !VALID_MCP_SERVER_TYPES.contains(&t) {
-                    findings.push(RawFinding {
-                        code: "CCC-JSON-011".into(),
-                        message: format!("mcpServers.{name}: invalid type '{t}' — valid: {}", VALID_MCP_SERVER_TYPES.join(", ")),
-                        span: (0, 0),
-                    });
-                }
-            }
-        }
-    }
-
-    // CCC-JSON-012: cleanupPeriodDays must not be 0 (silently disables persistence)
-    if let Some(n) = obj.get("cleanupPeriodDays").and_then(|v| v.as_i64()) {
-        if n == 0 {
-            findings.push(RawFinding {
-                code: "CCC-JSON-012".into(),
-                message: "cleanupPeriodDays: 0 silently disables transcript persistence".into(),
-                span: (0, 0),
-            });
-        }
-    }
-
-    findings
-}
-
-/// Structural validation of plugin.json — CCC-JSON-007: missing $schema field.
-pub fn validate_plugin_json(content: &str) -> Vec<RawFinding> {
-    let mut findings = Vec::new();
-    let Ok(val) = serde_json::from_str::<serde_json::Value>(content) else { return findings };
-    let Some(obj) = val.as_object() else { return findings };
-    if !obj.contains_key("$schema") {
-        findings.push(RawFinding {
-            code: "CCC-JSON-007".into(),
-            message: "plugin.json missing required '$schema' field".into(),
-            span: (0, 0),
-        });
-    }
-
-    // CCC-JSON-013: `themes`/`monitors` must be nested under `experimental`,
-    // not declared top-level (deprecated per Claude Code 2.1.129+).
-    for key in ["themes", "monitors"] {
-        if obj.contains_key(key) {
-            findings.push(RawFinding {
-                code: "CCC-JSON-013".into(),
-                message: format!("Top-level '{key}' is deprecated — declare it under \"experimental\": {{ \"{key}\": ... }} instead"),
-                span: (0, 0),
-            });
-        }
-    }
-
-    findings
 }

@@ -7,16 +7,16 @@
 //! editor would surface — no drift between the two entry points.
 
 use crate::analyzers::claude_md::{validate_claude_md, validate_skill_frontmatter};
+use crate::analyzers::commands::validate_command_file;
 use crate::analyzers::frontmatter::{
-    validate_agent_frontmatter, FrontmatterAnalyzer,
-    ReplayableAnalyzer as FrontmatterReplayable,
+    validate_agent_frontmatter, FrontmatterAnalyzer, ReplayableAnalyzer as FrontmatterReplayable,
 };
 use crate::analyzers::hook::{HookAnalyzer, ReplayableAnalyzer as HookReplayable};
 use crate::analyzers::json::{
     validate_plugin_json, validate_settings_json_enums, JsonAnalyzer,
     ReplayableAnalyzer as JsonReplayable,
 };
-use crate::analyzers::toml::{TomlAnalyzer, ReplayableAnalyzer as TomlReplayable};
+use crate::analyzers::toml::{ReplayableAnalyzer as TomlReplayable, TomlAnalyzer};
 
 /// A diagnostic produced by [`analyze_document`], flattened to the fields both
 /// callers need. `category` mirrors the `kind` returned by [`classify`].
@@ -37,18 +37,28 @@ pub struct ScanFinding {
 ///
 /// Works on both `file://` URIs and plain paths — it lowercases and matches on
 /// suffix/substring. Returns one of
-/// `"skill" | "claude_md" | "agent" | "json" | "toml" | "hook" | "unknown"`.
+/// `"skill" | "claude_md" | "agent" | "commands" | "json" | "toml" | "hook" |
+/// "unknown"`.
 pub fn classify(uri_or_path: &str) -> &'static str {
     let u = uri_or_path.to_lowercase();
     if u.ends_with("skill.md") || u.contains("/skills/") {
         "skill"
+    } else if u.contains("/commands/") && u.ends_with(".md") {
+        // Slash-command markdown lives under `.claude/commands/` (or a plugin's
+        // `commands/` dir). Wins over claude_md/agent so a command file that
+        // happens to be named like a doc surface still routes to the commands
+        // analyzer — the directory, not the filename, is the ontology here.
+        "commands"
     } else if u.ends_with("claude.md") || u.ends_with("agents.md") {
         "claude_md"
     } else if u.contains("/agents/") && u.ends_with(".md") {
         "agent"
-    } else if u.ends_with("settings.json") || u.ends_with("settings.local.json")
-        || u.ends_with("mcp.json") || u.ends_with("plugin.json")
-        || u.ends_with("marketplace.json") || u.ends_with("keybindings.json")
+    } else if u.ends_with("settings.json")
+        || u.ends_with("settings.local.json")
+        || u.ends_with("mcp.json")
+        || u.ends_with("plugin.json")
+        || u.ends_with("marketplace.json")
+        || u.ends_with("keybindings.json")
     {
         "json"
     } else if u.contains("/.claude/") && u.ends_with(".toml") {
@@ -65,6 +75,13 @@ pub fn classify(uri_or_path: &str) -> &'static str {
     }
 }
 
+/// Extract a filesystem path from a `file://` URI or plain path. Virtual
+/// schemes (`claude-config://`, `skill://`, …) are returned unchanged — callers
+/// must not treat the result as a real filesystem path without checking.
+fn uri_path(uri_or_path: &str) -> &str {
+    uri_or_path.strip_prefix("file://").unwrap_or(uri_or_path)
+}
+
 /// Run every analyzer that applies to `uri_or_path` against `content`.
 ///
 /// This is the exact dispatch the LSP backend runs per document: the
@@ -74,8 +91,17 @@ pub fn classify(uri_or_path: &str) -> &'static str {
 pub fn analyze_document(uri_or_path: &str, content: &str) -> Vec<ScanFinding> {
     let kind = classify(uri_or_path);
     let mut out: Vec<ScanFinding> = Vec::new();
-    let push = |out: &mut Vec<ScanFinding>, code: String, message: String, category: &'static str, span: (usize, usize)| {
-        out.push(ScanFinding { code, message, category, span });
+    let push = |out: &mut Vec<ScanFinding>,
+                code: String,
+                message: String,
+                category: &'static str,
+                span: (usize, usize)| {
+        out.push(ScanFinding {
+            code,
+            message,
+            category,
+            span,
+        });
     };
 
     match kind {
@@ -104,6 +130,12 @@ pub fn analyze_document(uri_or_path: &str, content: &str) -> Vec<ScanFinding> {
             }
         }
         "agent" => {
+            // md-family rules (CCC-MD-001/002/003, AgentMd surface): field-absence
+            // + tools-array checks from the claude_md analyzer. Distinct from the
+            // frontmatter-family CCC-AGENT-* analogs.
+            for raw in crate::analyzers::claude_md::validate_agent_md(content) {
+                push(&mut out, raw.code, raw.message, "md", raw.span);
+            }
             for raw in validate_agent_frontmatter(content) {
                 push(&mut out, raw.code, raw.message, "agent", raw.span);
             }
@@ -125,6 +157,21 @@ pub fn analyze_document(uri_or_path: &str, content: &str) -> Vec<ScanFinding> {
                 for raw in validate_plugin_json(content) {
                     push(&mut out, raw.code, raw.message, "json", raw.span);
                 }
+            }
+        }
+        "commands" => {
+            // `@file` references resolve against the directory containing the
+            // command file. Only pass a base_dir when it resolves to a REAL
+            // directory on disk — for virtual `claude-config://` URIs (and
+            // synthetic test URIs under nonexistent paths) there is no parent
+            // dir, and passing a bogus base would false-fire CCC-CMD-003.
+            let path = uri_path(uri_or_path);
+            let base_dir = std::path::Path::new(path)
+                .parent()
+                .filter(|p| p.is_dir())
+                .map(|p| p.to_path_buf());
+            for raw in validate_command_file(content, base_dir.as_deref()) {
+                push(&mut out, raw.code, raw.message, "commands", raw.span);
             }
         }
         "toml" => {

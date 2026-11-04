@@ -1,0 +1,7 @@
+{
+  "env": {
+    "PATH": "/bin",
+    "MAX": 5
+  },
+  "model": "opus"
+}

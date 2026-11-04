@@ -69,9 +69,21 @@ fn classify_scopes_toml_to_claude_directory() {
     let toolchain = scan::classify(fx.toolchain_toml);
 
     // Assert — only .claude/ TOML is a config surface; build TOML is not.
-    assert_eq_msg!(config, "toml", "config TOML under .claude/ must classify as toml");
-    assert_eq_msg!(cargo, "unknown", "Cargo.toml must NOT be treated as config TOML");
-    assert_eq_msg!(toolchain, "unknown", "rust-toolchain.toml must NOT be config TOML");
+    assert_eq_msg!(
+        config,
+        "toml",
+        "config TOML under .claude/ must classify as toml"
+    );
+    assert_eq_msg!(
+        cargo,
+        "unknown",
+        "Cargo.toml must NOT be treated as config TOML"
+    );
+    assert_eq_msg!(
+        toolchain,
+        "unknown",
+        "rust-toolchain.toml must NOT be config TOML"
+    );
 }
 
 #[test]
@@ -85,7 +97,11 @@ fn classify_scopes_hooks_to_hooks_directory() {
 
     // Assert — only scripts under a hooks/ dir are hooks.
     assert_eq_msg!(hook, "hook", "scripts under hooks/ must classify as hook");
-    assert_eq_msg!(stray, "unknown", "a stray *.sh must NOT be treated as a hook");
+    assert_eq_msg!(
+        stray,
+        "unknown",
+        "a stray *.sh must NOT be treated as a hook"
+    );
 }
 
 #[test]
@@ -94,8 +110,16 @@ fn classify_recognizes_json_and_ignores_docs() {
     let fx = ClassifyFixture::new();
 
     // Act / Assert
-    assert_eq_msg!(scan::classify(fx.settings_json), "json", "settings.json is a json surface");
-    assert_eq_msg!(scan::classify(fx.readme), "unknown", "README.md is not a config surface");
+    assert_eq_msg!(
+        scan::classify(fx.settings_json),
+        "json",
+        "settings.json is a json surface"
+    );
+    assert_eq_msg!(
+        scan::classify(fx.readme),
+        "unknown",
+        "README.md is not a config surface"
+    );
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -139,7 +163,10 @@ fn analyze_document_unknown_surface_is_clean() {
     let findings = scan::analyze_document("/proj/Cargo.toml", "[package]\nversion = \"1.0.0\"\n");
 
     // Assert — Cargo.toml is not a config surface, so no CalVer noise.
-    assert!(findings.is_empty(), "non-config files must yield zero findings");
+    assert!(
+        findings.is_empty(),
+        "non-config files must yield zero findings"
+    );
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -197,9 +224,15 @@ impl FixtureRepo {
             ".claude/skills/undeclared/SKILL.md",
             "---\nname: undeclared\ndescription: An undeclared fixture skill.\n---\nBody.\n",
         );
-        write(".claude/lsp-max-auto.toml", "edition = \"2024\"\nversion = \"26.7.3\"\n");
+        write(
+            ".claude/lsp-max-auto.toml",
+            "edition = \"2024\"\nversion = \"26.7.3\"\n",
+        );
         write("hooks/session-start.sh", "#!/bin/sh\necho fixture\n");
-        write(".mcp.json", r#"{"mcpServers": {"example": {"command": "example-mcp"}}}"#);
+        write(
+            ".mcp.json",
+            r#"{"mcpServers": {"example": {"command": "example-mcp"}}}"#,
+        );
         Self { dir }
     }
 
@@ -233,7 +266,15 @@ fn build_tree_covers_expected_surfaces_and_parses_json() {
     );
 
     let surfaces: Vec<&str> = tree.files.iter().map(|f| f.surface).collect();
-    for expected in ["settings.json", "plugin.json", "agent", "skill", "toml", "hook", "mcp.json"] {
+    for expected in [
+        "settings.json",
+        "plugin.json",
+        "agent",
+        "skill",
+        "toml",
+        "hook",
+        "mcp.json",
+    ] {
         assert!(
             surfaces.contains(&expected),
             "export tree missing expected surface: {expected}"
@@ -246,7 +287,10 @@ fn build_tree_covers_expected_surfaces_and_parses_json() {
         .iter()
         .find(|f| f.surface == "settings.json")
         .expect("settings.json node present");
-    assert!(settings.content.is_object(), "settings.json content must be parsed JSON");
+    assert!(
+        settings.content.is_object(),
+        "settings.json content must be parsed JSON"
+    );
 
     // Non-config TOML must not leak into the tree.
     assert!(
@@ -277,7 +321,10 @@ fn usage_report_percent_within_bounds_and_invariant_holds() {
         bucket_sum,
         "unused_items must equal the sum of all four buckets"
     );
-    assert!(report.total_items >= report.unused_items, "total must be >= unused");
+    assert!(
+        report.total_items >= report.unused_items,
+        "total must be >= unused"
+    );
 }
 
 #[test]
@@ -342,14 +389,22 @@ fn conformance_report_calculates_correct_score_and_tracks_surfaces() {
 
     // Assert
     assert_eq_msg!(report.surfaces_checked, 1, "should have checked 1 surface");
-    assert_eq_msg!(report.surfaces_admitted, 0, "should have admitted 0 surfaces");
-    assert_eq_msg!(report.violations.len(), 2, "should have exactly 2 violations");
+    assert_eq_msg!(
+        report.surfaces_admitted,
+        0,
+        "should have admitted 0 surfaces"
+    );
+    assert_eq_msg!(
+        report.violations.len(),
+        2,
+        "should have exactly 2 violations"
+    );
 
     // Check violations content format: "{code}: {relative_path} {message}"
     let v1 = &report.violations[0];
     assert!(v1.contains("CCC-JSON-004") || v1.contains("CCC-JSON-008"));
     assert!(v1.contains(".claude/settings.json"));
-    
+
     // Score should be (100 - 10 * 1 - 3 * 1) / 100.0 = 0.87
     let expected_score = 0.87;
     assert_eq_msg!(report.score, expected_score, "score should match formula");
@@ -365,11 +420,24 @@ fn virtual_doc_health_matches_conformance_report() {
     // Act
     let report = inventory::conformance_report(&root);
     let virtual_doc_text = claude_code_config_lsp::virtual_docs::render();
-    let deserialized_report: inventory::WorkspaceConformance = serde_json::from_str(&virtual_doc_text).unwrap();
+    let deserialized_report: inventory::WorkspaceConformance =
+        serde_json::from_str(&virtual_doc_text).unwrap();
 
     // Assert
     assert_eq_msg!(report.score, deserialized_report.score, "scores must match");
-    assert_eq_msg!(report.surfaces_checked, deserialized_report.surfaces_checked, "surfaces checked must match");
-    assert_eq_msg!(report.surfaces_admitted, deserialized_report.surfaces_admitted, "surfaces admitted must match");
-    assert_eq_msg!(report.violations, deserialized_report.violations, "violations list must match");
+    assert_eq_msg!(
+        report.surfaces_checked,
+        deserialized_report.surfaces_checked,
+        "surfaces checked must match"
+    );
+    assert_eq_msg!(
+        report.surfaces_admitted,
+        deserialized_report.surfaces_admitted,
+        "surfaces admitted must match"
+    );
+    assert_eq_msg!(
+        report.violations,
+        deserialized_report.violations,
+        "violations list must match"
+    );
 }

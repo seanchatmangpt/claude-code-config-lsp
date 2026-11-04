@@ -1,0 +1,52 @@
+{
+  "timestamp": "2026-11-03T20:32:20.583164Z",
+  "conformance_score": 0.7,
+  "file_checksums": [
+    {
+      "path": "agents/default-agent.md",
+      "checksum": "b073a8fc2ccd70eef25e6977656ef579fe6e7aa8e1978e24a0e6f23b9f3b311d"
+    },
+    {
+      "path": "claude-global-CLAUDE.md",
+      "checksum": "9ebb04758629928bc6e554e006ae7156102cced086d8d70314a5152286b7ebca"
+    },
+    {
+      "path": "settings.json",
+      "checksum": "11311ba5f8400ec81cd143a01a666a2a76e12565fe0f71582a2caccc46d180a5"
+    },
+    {
+      "path": "settings.local.json",
+      "checksum": "6a2ddd5849d802b2b57b7e65aa2eaaaab66b6e4923646503fb709e51e74da59f"
+    },
+    {
+      "path": "skills/config-audit/SKILL.md",
+      "checksum": "2ab725cf7ac8b52e557060915c27d7dccfc59df881bc84308bb12e7d00a92b3a"
+    },
+    {
+      "path": "skills/errc-cycle/SKILL.md",
+      "checksum": "ab540ed422d86197f8e198cd319bcfe3dbbbbfa8db072629b5168b0c325dfd89"
+    },
+    {
+      "path": "skills/ggen/SKILL.md",
+      "checksum": "d5277f0a0f3d39ded2d8e2553cf72d81948db6ef5edfc8cea4c1ea0969a39229"
+    },
+    {
+      "path": "skills/mcp-doctor/SKILL.md",
+      "checksum": "a6681e18855825cc4bad9d4e3ae28915ac3519949f20e9bf53a6b22c22ccfd4f"
+    },
+    {
+      "path": "skills/run-ggen/SKILL.md",
+      "checksum": "b76412758ebb9f2027a10802449e3854823dc7a330c8ff4e921435d0759b959d"
+    },
+    {
+      "path": "skills/source-of-truth-check/SKILL.md",
+      "checksum": "ef3438e6aee989a5c604c3dcaeccafa3fe1d28c21e68949c4719742d4fd6ef81"
+    },
+    {
+      "path": "zcode-global-CLAUDE.md",
+      "checksum": "0f10890642d7d676ca482e29b7b863882d31adfb6c4663e7c7dc7374245cc985"
+    }
+  ],
+  "previous_receipt_hash": null,
+  "hash": "19b294d545f233bf2cf45522ed85b4a419c2935e2a98b54affd0aed006bc35fd"
+}
