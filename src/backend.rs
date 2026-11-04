@@ -316,12 +316,15 @@ impl RulePackServer for ClaudeCodeConfigBackend {
             "DiagnosticsPublished",
             &format!("uri={uri_str},count={finding_count}"),
         );
-        // Standing layer (H4 wiring): on a classifyable config surface,
-        // resolve the fleet receipt under provider_roots()[0] and append the
-        // surface's standing diagnostic(s) to the same publish batch. ALIVE
-        // emits nothing (standing.rs law); a receiptless workspace emits
-        // standing-unverified; severities come from standing_diagnostics and
-        // are never ERROR (ANDON law).
+        // Standing layer (H4 wiring, XD-16 root-cause fix): on a classifyable
+        // config surface, resolve the fleet receipt under the surface's own
+        // workspace root (the directory owning its `.claude/` tree — NOT the
+        // navigation corpus roots) and append the surface's standing
+        // diagnostic(s) to the same publish batch. ALIVE emits nothing
+        // (standing.rs law); an un-governed workspace (no receipt) emits
+        // nothing either — standing-unverified is resolvable vocabulary state,
+        // never editor noise riding the analyzer batch; severities come from
+        // standing_diagnostics and are never ERROR (ANDON law).
         sync.extend(self.standing_layer(uri, finding_count));
         (sync, vec![])
     }
@@ -329,24 +332,72 @@ impl RulePackServer for ClaudeCodeConfigBackend {
 
 impl ClaudeCodeConfigBackend {
     /// The standing diagnostic layer appended to the analyzer batch for one
-    /// surface: loads the fleet receipt at
-    /// `provider_roots()[0]/.claude/receipts/latest.json`, resolves standing
-    /// via [`crate::standing::standing_for_surface`], and maps the non-ALIVE
-    /// standing to diagnostics. `analyzer_finding_count` is the analyzer batch
-    /// size for this surface — PARTIAL fires only on a green+fresh receipt
-    /// WITH findings present. `newest_source_mtime` is passed as `None`: the
-    /// backend does not track per-surface source mtimes, so freshness rounds
-    /// DOWN per the standing.rs:137-143 never-round-up law (a receipt whose
-    /// mtime was disk-witnessed at load stays fresh against no source
-    /// baseline; a parsed-without-disk receipt never claims fresh).
+    /// surface: resolves the surface's own workspace root (the directory
+    /// owning the surface's `.claude/` tree, via
+    /// [`surface_workspace_root`]), loads the fleet receipt at
+    /// `<root>/.claude/receipts/latest.json`, resolves standing via
+    /// [`crate::standing::standing_for_surface`], and maps the non-ALIVE
+    /// standing to diagnostics — but ONLY when the workspace is governed (a
+    /// receipt actually exists on disk).
+    ///
+    /// XD-16 root cause (two defects, one site):
+    /// 1. Root resolution read `provider_roots()[0]` — the navigation
+    ///    corpus roots (`$HOME/.claude/rules`, see `navigation.rs:151`),
+    ///    NOT the workspace. The receipt lookup therefore never saw the
+    ///    opened workspace's receipt at all: standing could never be ALIVE
+    ///    in a governed workspace, and every config surface in every
+    ///    workspace got `standing-unverified` resolved against an unrelated
+    ///    receiptless root.
+    /// 2. In an un-governed workspace (no receipt anywhere) the layer still
+    ///    emitted `standing-unverified` on every publish, so valid content
+    ///    in any receiptless workspace carried editor noise. The AF-23
+    ///    direct-call courts pin the vocabulary law at the pure core
+    ///    (`standing_layer_for_root`), which keeps emitting UNVERIFIED —
+    ///    the publish-path refinement is production wiring only.
+    ///
+    /// `analyzer_finding_count` is the analyzer batch size for this surface —
+    /// PARTIAL fires only on a green+fresh receipt WITH findings present.
+    /// `newest_source_mtime` is passed as `None`: the backend does not track
+    /// per-surface source mtimes, so freshness rounds DOWN per the
+    /// standing.rs:137-143 never-round-up law (a receipt whose mtime was
+    /// disk-witnessed at load stays fresh against no source baseline; a
+    /// parsed-without-disk receipt never claims fresh).
     fn standing_layer(&self, uri: &Url, analyzer_finding_count: usize) -> Vec<Finding> {
-        let root = self
-            .provider_roots()
-            .into_iter()
-            .next()
-            .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
-        standing_layer_for_root(&root, uri, analyzer_finding_count)
+        // Governance gate: standing diagnostics ride the publish batch only
+        // for workspaces that actually carry a fleet receipt. An un-governed
+        // workspace's merged batch stays single-family (the analyzer's own
+        // codes) — no `standing-unverified` INFORMATION noise per publish.
+        match surface_workspace_root(uri) {
+            Some(root) => {
+                let receipt = crate::standing::load_receipt(&root).ok().flatten();
+                if receipt.is_none() {
+                    return vec![];
+                }
+                standing_layer_for_root(&root, uri, analyzer_finding_count)
+            }
+            None => vec![],
+        }
     }
+}
+
+/// Resolve the workspace root that owns a surface URI's `.claude/` tree:
+/// the path prefix before the LAST `/​.claude/` segment (so
+/// `<root>/.claude/receipts/latest.json` is the fleet receipt for the
+/// workspace the surface actually lives in). Falls back to the surface's
+/// parent directory for config surfaces outside a `.claude/` tree (e.g.
+/// `AGENTS.md`, repo-root `CLAUDE.md`).
+fn surface_workspace_root(uri: &Url) -> Option<std::path::PathBuf> {
+    let path = uri.path().as_str();
+    let marker = "/.claude/";
+    if let Some(idx) = path.rfind(marker) {
+        let prefix = &path[..idx];
+        if prefix.is_empty() {
+            return None;
+        }
+        return Some(std::path::PathBuf::from(prefix));
+    }
+    // No `.claude/` ancestor: the surface's enclosing directory is the root.
+    std::path::Path::new(path).parent().map(|p| p.to_path_buf())
 }
 
 /// Pure-core standing layer over an explicit workspace root, exposed `pub`
