@@ -303,7 +303,7 @@ impl RulePackServer for ClaudeCodeConfigBackend {
         // Single source of truth: the same classify + dispatch the `scan` CLI
         // verb uses (see `crate::scan::analyze_document`). We only add the
         // scope tag + OCEL event that are LSP-server-specific here.
-        let sync: Vec<Finding> = crate::scan::analyze_document(uri_str, content)
+        let mut sync: Vec<Finding> = crate::scan::analyze_document(uri_str, content)
             .into_iter()
             .map(|raw| {
                 let range = span_to_range(content, raw.span);
@@ -316,8 +316,69 @@ impl RulePackServer for ClaudeCodeConfigBackend {
             "DiagnosticsPublished",
             &format!("uri={uri_str},count={finding_count}"),
         );
+        // Standing layer (H4 wiring): on a classifyable config surface,
+        // resolve the fleet receipt under provider_roots()[0] and append the
+        // surface's standing diagnostic(s) to the same publish batch. ALIVE
+        // emits nothing (standing.rs law); a receiptless workspace emits
+        // standing-unverified; severities come from standing_diagnostics and
+        // are never ERROR (ANDON law).
+        sync.extend(self.standing_layer(uri, finding_count));
         (sync, vec![])
     }
+}
+
+impl ClaudeCodeConfigBackend {
+    /// The standing diagnostic layer appended to the analyzer batch for one
+    /// surface: loads the fleet receipt at
+    /// `provider_roots()[0]/.claude/receipts/latest.json`, resolves standing
+    /// via [`crate::standing::standing_for_surface`], and maps the non-ALIVE
+    /// standing to diagnostics. `analyzer_finding_count` is the analyzer batch
+    /// size for this surface — PARTIAL fires only on a green+fresh receipt
+    /// WITH findings present. `newest_source_mtime` is passed as `None`: the
+    /// backend does not track per-surface source mtimes, so freshness rounds
+    /// DOWN per the standing.rs:137-143 never-round-up law (a receipt whose
+    /// mtime was disk-witnessed at load stays fresh against no source
+    /// baseline; a parsed-without-disk receipt never claims fresh).
+    fn standing_layer(&self, uri: &Url, analyzer_finding_count: usize) -> Vec<Finding> {
+        let root = self
+            .provider_roots()
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+        standing_layer_for_root(&root, uri, analyzer_finding_count)
+    }
+}
+
+/// Pure-core standing layer over an explicit workspace root, exposed `pub`
+/// for the courts in tests/standing.rs (real tempdir receipts, no mocks).
+/// Returns empty for surfaces `crate::scan::classify` maps to "unknown" —
+/// standing is a property of config surfaces only — and for ALIVE standing.
+pub fn standing_layer_for_root(
+    root: &std::path::Path,
+    surface: &Uri,
+    analyzer_finding_count: usize,
+) -> Vec<Finding> {
+    if crate::scan::classify(surface.as_str()) == "unknown" {
+        return vec![];
+    }
+    let receipt = crate::standing::load_receipt(root).ok().flatten();
+    let standing = crate::standing::standing_for_surface(
+        surface,
+        receipt.as_ref(),
+        None,
+        analyzer_finding_count,
+    );
+    crate::standing::standing_diagnostics(surface, standing, receipt.as_ref())
+        .into_iter()
+        .map(|diag| {
+            let max = MaxDiagnostic {
+                law_axis: LawAxis::Custom(crate::standing::STANDING_SOURCE.to_string()),
+                lsp: diag.clone(),
+                ..MaxDiagnostic::default()
+            };
+            (max, diag)
+        })
+        .collect()
 }
 
 #[lsp_max::async_trait]

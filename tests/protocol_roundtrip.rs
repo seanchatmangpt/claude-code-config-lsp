@@ -324,9 +324,15 @@ fn fixture_corpus_roundtrip_publishes_well_formed_diagnostics() {
             .unwrap_or_else(|| panic!("diagnostics must be an array for {rel:?}, got: {diag}"));
         for d in diags {
             let code = d["code"].as_str().unwrap_or("");
+            let source = d["source"].as_str().unwrap_or("");
+            // The publish batch merges two source families since AF-23 wired
+            // the standing layer: analyzer findings (CCC-*) and the fleet
+            // standing vocabulary (standing-*) — see src/standing.rs.
+            let known_family = code.starts_with("CCC-")
+                || (source == "standing" && code.starts_with("standing-"));
             assert!(
-                code.starts_with("CCC-"),
-                "diagnostic code must be a CCC-* code for {rel:?}, got: {d}"
+                known_family,
+                "diagnostic code must be a CCC-* or standing-* code for {rel:?}, got: {d}"
             );
             assert!(
                 !d["message"].as_str().unwrap_or("").is_empty(),

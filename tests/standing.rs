@@ -194,3 +194,139 @@ fn code(d: &lsp_types_max::Diagnostic) -> &str {
         _ => panic!("expected string code"),
     }
 }
+
+// -- H4 wiring courts (AF-23): standing merged into the publish batch ------
+// The merge these courts exercise is the exact composition
+// `ClaudeCodeConfigBackend::scan_uri_classified` performs per did_open /
+// did_change: analyzer findings via `scan::analyze_document`, then the
+// standing layer over `provider_roots()[0]`'s fleet receipt.
+
+use claude_code_config_lsp::backend::standing_layer_for_root;
+use claude_code_config_lsp::scan::analyze_document;
+use lsp_types_max::{DiagnosticSeverity as LspSeverity, NumberOrString as LspNumStr};
+
+/// The analyzer findings for a settings.json surface (real analyzers), scoped
+/// the way the backend scopes them.
+fn analyzer_findings(uri: &str, content: &str) -> Vec<lsp_types_max::Diagnostic> {
+    analyze_document(uri, content)
+        .into_iter()
+        .map(|raw| lsp_types_max::Diagnostic {
+            code: Some(LspNumStr::String(raw.code)),
+            message: raw.message,
+            ..Default::default()
+        })
+    .collect()
+}
+
+/// Combined publish batch: analyzers + standing, the scan_uri_classified merge.
+fn merged_batch(root: &Path, uri_str: &str, content: &str, surface: &lsp_types_max::Uri) -> Vec<lsp_types_max::Diagnostic> {
+    let mut batch = analyzer_findings(uri_str, content);
+    let count = batch.len();
+    batch.extend(
+        standing_layer_for_root(root, surface, count)
+            .into_iter()
+            .map(|(_max, diag)| diag),
+    );
+    batch
+}
+
+#[test]
+fn receiptless_workspace_emits_unverified_merged_with_analyzer_findings() {
+    let dir = temp_workspace("h4-unverified");
+    let surface: lsp_types_max::Uri =
+        format!("file://{}/.claude/settings.json", dir.display()).parse().unwrap();
+    let uri_str = surface.as_str();
+    // Real analyzer finding: bare-string skillOverrides fires CCC-JSON-009.
+    let content = r#"{"skillOverrides": "off"}"#;
+    let batch = merged_batch(&dir, uri_str, content, &surface);
+    let codes: Vec<&str> = batch
+        .iter()
+        .filter_map(|d| match &d.code {
+            Some(LspNumStr::String(s)) => Some(s.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        codes.iter().any(|c| c.starts_with("CCC-JSON")),
+        "analyzer finding missing from merged batch: {codes:?}"
+    );
+    assert!(
+        codes.contains(&CODE_UNVERIFIED),
+        "standing-unverified missing from merged batch: {codes:?}"
+    );
+    // source tag on the standing diag, per the G3 design.
+    let standing = batch
+        .iter()
+        .find(|d| d.source.as_deref() == Some("standing"))
+        .unwrap();
+    assert_eq!(code(standing), CODE_UNVERIFIED);
+}
+
+#[test]
+fn alive_receipt_emits_no_standing_diagnostic() {
+    let dir = temp_workspace("h4-alive");
+    write_receipt(&dir, "green", &["just gate"]);
+    let surface: lsp_types_max::Uri =
+        format!("file://{}/.claude/settings.json", dir.display()).parse().unwrap();
+    // Clean content: zero analyzer findings -> green+fresh+clean = ALIVE.
+    let batch = merged_batch(&dir, surface.as_str(), "{}", &surface);
+    assert!(
+        batch.iter().all(|d| d.source.as_deref() != Some("standing")),
+        "ALIVE must emit no standing diagnostic: {:?}",
+        batch
+    );
+}
+
+#[test]
+fn green_receipt_with_findings_emits_standing_partial() {
+    let dir = temp_workspace("h4-partial");
+    write_receipt(&dir, "green", &["just gate"]);
+    let surface: lsp_types_max::Uri =
+        format!("file://{}/.claude/settings.json", dir.display()).parse().unwrap();
+    let content = r#"{"skillOverrides": "off"}"#;
+    let batch = merged_batch(&dir, surface.as_str(), content, &surface);
+    let standing = batch
+        .iter()
+        .find(|d| d.source.as_deref() == Some("standing"))
+        .expect("PARTIAL standing diagnostic must be present");
+    assert_eq!(code(standing), CODE_PARTIAL);
+}
+
+#[test]
+fn standing_severities_are_never_error() {
+    // Across all three non-ALIVE standings reachable through the wiring layer.
+    for tag in ["h4-sev-unverified", "h4-sev-blocked", "h4-sev-partial"] {
+        let dir = temp_workspace(tag);
+        let surface: lsp_types_max::Uri =
+            format!("file://{}/.claude/settings.json", dir.display()).parse().unwrap();
+        if tag.ends_with("blocked") || tag.ends_with("partial") {
+            write_receipt(&dir, "red", &["just gate"]);
+        }
+        let content = if tag.ends_with("partial") {
+            r#"{"skillOverrides": "off"}"#
+        } else {
+            "{}"
+        };
+        let batch = merged_batch(&dir, surface.as_str(), content, &surface);
+        for d in batch.iter().filter(|d| d.source.as_deref() == Some("standing")) {
+            assert_ne!(
+                d.severity,
+                Some(LspSeverity::ERROR),
+                "standing diagnostic carried ERROR severity: {}",
+                code(d)
+            );
+        }
+    }
+}
+
+#[test]
+fn unclassified_surface_emits_no_standing_diagnostic() {
+    // Standing is a property of config surfaces; classify() == "unknown"
+    // (README, src/main.rs) must not carry a standing diagnostic even in a
+    // receiptless workspace — the gate lives in standing_layer_for_root.
+    assert_eq!(claude_code_config_lsp::scan::classify("/x/README.md"), "unknown");
+    let dir = temp_workspace("h4-unclassified");
+    let surface: lsp_types_max::Uri =
+        format!("file://{}/README.md", dir.display()).parse().unwrap();
+    assert!(standing_layer_for_root(&dir, &surface, 0).is_empty());
+}
