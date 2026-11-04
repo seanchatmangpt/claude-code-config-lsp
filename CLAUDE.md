@@ -192,7 +192,7 @@ Edit the `rdfs:comment` (for hover) or completion table in the ontology. Run `gg
 ## Dependencies
 
 **Core:**
-- `lsp-max` (26.7.3) — LSP server framework, conformance, rule pack infrastructure
+- `lsp-max` (26.11.3) — LSP server framework, conformance, rule pack infrastructure
 - `lsp-types-max` (26.6, proposed features) — LSP type definitions
 - `tree-sitter` (0.26) — Syntax tree parsing
 - `tree-sitter-json` (0.23) — JSON parser
