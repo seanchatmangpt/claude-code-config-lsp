@@ -33,34 +33,6 @@ template    = { pack = "lsp-max", output = "templates", file = "cargo.toml.tera"
 output_file = "Cargo.toml"
 mode        = "Create"
 
-# ─── Rule: lib ───────────────────────────────────────────────────────────────
-
-[[generation.rules]]
-name        = "lib"
-query       = { file = "sparql/modules.rq" }
-template    = { pack = "lsp-max", output = "templates", file = "lib.rs.tera" }
-output_file = "src/lib.rs"
-mode        = "Create"
-
-# ─── Rule: main-rs ───────────────────────────────────────────────────────────
-
-[[generation.rules]]
-name        = "main-rs"
-query       = { inline = "SELECT (\"ClaudeCodeConfig\" AS ?server_name) (\"claude_code_config_lsp\" AS ?snake_name) WHERE {} ORDER BY ?server_name" }
-template    = { pack = "lsp-max", output = "templates", file = "main.rs.tera" }
-output_file = "src/main.rs"
-mode        = "Create"
-
-# ─── Rule: backend ───────────────────────────────────────────────────────────
-
-[[generation.rules]]
-name        = "backend"
-query       = { file = "sparql/handlers.rq" }
-template    = { pack = "lsp-max", output = "templates", file = "backend.rs.tera" }
-output_file = "src/backend.rs"
-mode        = "Create"
-skip_empty  = false
-
 # ─── Rule: capabilities ──────────────────────────────────────────────────────
 
 [[generation.rules]]
